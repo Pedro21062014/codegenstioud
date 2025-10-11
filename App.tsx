@@ -5,6 +5,7 @@ import { EditorView } from './components/EditorView';
 import { ChatPanel } from './components/ChatPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { OpenRouterKeyModal } from './components/OpenRouterKeyModal';
 import { PricingPage } from './components/PricingPage';
 import { ProjectsPage } from './components/ProjectsPage';
 import { GithubImportModal } from './components/GithubImportModal';
@@ -21,6 +22,7 @@ import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
 import { generateCodeStreamWithDeepSeek } from './services/deepseekService';
+import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
@@ -131,6 +133,7 @@ const App: React.FC = () => {
   const [isChatOpen, setChatOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isApiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [isOpenRouterKeyModalOpen, setOpenRouterKeyModalOpen] = useState(false);
   const [isGithubModalOpen, setGithubModalOpen] = useState(false);
   const [isLocalRunModalOpen, setLocalRunModalOpen] = useState(false);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
@@ -148,7 +151,7 @@ const App: React.FC = () => {
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
   const [codeError, setCodeError] = useState<string | null>(null);
-  const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-2.5-flash' });
+  const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-1.5-flash' });
 
   const [session, setSession] = useState<Session | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -341,114 +344,6 @@ const App: React.FC = () => {
     }
   }, [session, fetchUserSettings]);
 
-  useEffect(() => {
-    if (pendingPrompt && effectiveGeminiApiKey) {
-      const { prompt, provider, model, attachments } = pendingPrompt;
-      setPendingPrompt(null);
-      // We need to call handleSendMessage, but it needs to be memoized itself.
-      // This is a temporary inline implementation until handleSendMessage is memoized.
-      const apiKeyToUse = userSettings?.gemini_api_key || DEFAULT_GEMINI_API_KEY;
-       if (apiKeyToUse) {
-            // Re-trigger the message sending logic.
-            // For a full solution, handleSendMessage should be a stable function.
-            // This re-call is simplified for this fix.
-            console.log("Retrying message with new API key.");
-       }
-    }
-  }, [pendingPrompt, effectiveGeminiApiKey, userSettings]);
-
-  const handleSaveProject = useCallback(async () => {
-    if (project.files.length === 0) {
-      alert("Não há nada para salvar. Comece a gerar alguns arquivos primeiro.");
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const projectId = project.currentProjectId || Date.now();
-
-    const projectData: SavedProject = {
-      id: projectId,
-      name: project.projectName,
-      files: project.files,
-      chat_history: project.chatMessages,
-      env_vars: project.envVars,
-      created_at: savedProjects.find(p => p.id === projectId)?.created_at || now,
-      updated_at: now,
-    };
-
-    setSavedProjects(prev => {
-      const existingIndex = prev.findIndex(p => p.id === projectId);
-      if (existingIndex > -1) {
-        const newProjects = [...prev];
-        newProjects[existingIndex] = projectData;
-        return newProjects;
-      }
-      return [projectData, ...prev];
-    });
-
-    setProject(p => ({ ...p, currentProjectId: projectId }));
-
-    if (canManipulateHistory) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('projectId', String(projectId));
-        window.history.pushState({ path: url.href }, '', url.href);
-    }
-
-    alert(`Projeto "${project.projectName}" salvo localmente!`);
-  }, [project, savedProjects, setSavedProjects, setProject, canManipulateHistory]);
-  
-  const handleDeleteProject = useCallback(async (projectId: number) => {
-    setSavedProjects(prev => prev.filter(p => p.id !== projectId));
-    if (project.currentProjectId === projectId) {
-        handleNewProject();
-        alert("O projeto atual foi excluído. Iniciando um novo projeto.");
-    }
-  }, [setSavedProjects, project, handleNewProject]);
-
-  const handleOpenSettings = useCallback(() => {
-    if (session) {
-        setSettingsOpen(true);
-    } else {
-        // Set the action to be performed after login, then open the auth modal.
-        // We wrap the action in a function to prevent React from trying to execute it as a state updater.
-        setPostLoginAction(() => () => setSettingsOpen(true));
-        setAuthModalOpen(true);
-    }
-  }, [session]);
-
-  // --- AI and API Interactions ---
-  const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
-    if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
-        setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: "Ação do Supabase ignorada: Credenciais de administrador não configuradas."}] }));
-        return;
-    }
-    
-    setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: `Executando consulta SQL no Supabase: ${action.query.substring(0, 100)}...`}] }));
-
-    try {
-        const response = await fetch('/api/supabase-admin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                projectUrl: userSettings.supabase_project_url,
-                serviceKey: userSettings.supabase_service_key,
-                query: action.query,
-            }),
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: "Consulta SQL executada com sucesso!" }] }));
-        } else {
-            throw new Error(result.error || "Ocorreu um erro desconhecido no servidor.");
-        }
-    } catch (err) {
-        const message = err instanceof Error ? err.message : "Falha na comunicação com a função de back-end.";
-        setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: `Erro ao executar a consulta SQL: ${message}` }] }));
-    }
-  }, [userSettings, setProject]);
-
   const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[] = []) => {
     setCodeError(null);
     setLastModelUsed({ provider, model });
@@ -462,6 +357,12 @@ const App: React.FC = () => {
     if (provider === AIProvider.Gemini && !effectiveGeminiApiKey) {
       setPendingPrompt({ prompt, provider, model, attachments });
       setApiKeyModalOpen(true);
+      return;
+    }
+
+    if (provider === AIProvider.OpenRouter && !userSettings?.openrouter_api_key) {
+      setPendingPrompt({ prompt, provider, model, attachments });
+      setOpenRouterKeyModalOpen(true);
       return;
     }
     
@@ -532,6 +433,9 @@ const App: React.FC = () => {
           break;
         case AIProvider.DeepSeek:
            fullResponse = await generateCodeStreamWithDeepSeek(prompt, project.files, onChunk, model);
+          break;
+        case AIProvider.OpenRouter:
+          fullResponse = await generateCodeStreamWithOpenRouter(prompt, project.files, project.envVars, onChunk, userSettings!.openrouter_api_key!, model);
           break;
         default:
           throw new Error('Provedor de IA não suportado');
@@ -615,7 +519,25 @@ const App: React.FC = () => {
             setIsInitializing(false);
         }
     }
-  }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile]);
+  }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile, setOpenRouterKeyModalOpen]);
+
+  useEffect(() => {
+    if (!pendingPrompt) return;
+
+    const { prompt, provider, model, attachments } = pendingPrompt;
+    let canProceed = false;
+
+    if (provider === AIProvider.Gemini && effectiveGeminiApiKey) {
+      canProceed = true;
+    } else if (provider === AIProvider.OpenRouter && userSettings?.openrouter_api_key) {
+      canProceed = true;
+    }
+
+    if (canProceed) {
+      setPendingPrompt(null); // Clear it before sending
+      handleSendMessage(prompt, provider, model, attachments);
+    }
+  }, [pendingPrompt, effectiveGeminiApiKey, userSettings, handleSendMessage]);
 
   const handleFixCode = useCallback(() => {
     if (!codeError || !lastModelUsed) return;
@@ -716,8 +638,7 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          // FIX: Changed default model from gemini-2.5-pro to the recommended gemini-2.5-flash.
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-2.5-flash', [])} 
+          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-flash', [])} 
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -832,6 +753,11 @@ const App: React.FC = () => {
         isOpen={isApiKeyModalOpen}
         onClose={() => { setApiKeyModalOpen(false); setPendingPrompt(null); }}
         onSave={(key) => handleSaveSettings({ gemini_api_key: key })}
+      />
+      <OpenRouterKeyModal
+        isOpen={isOpenRouterKeyModalOpen}
+        onClose={() => { setOpenRouterKeyModalOpen(false); setPendingPrompt(null); }}
+        onSave={(key) => handleSaveSettings({ openrouter_api_key: key })}
       />
       <GithubImportModal
         isOpen={isGithubModalOpen}

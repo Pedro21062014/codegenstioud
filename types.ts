@@ -1,8 +1,8 @@
-
 export enum AIProvider {
   Gemini = 'Gemini',
   OpenAI = 'OpenAI',
   DeepSeek = 'DeepSeek',
+  OpenRouter = 'OpenRouter',
 }
 
 export enum IntegrationProvider {
@@ -44,6 +44,7 @@ export interface UserSettings {
   stripe_public_key?: string;
   stripe_secret_key?: string;
   neon_connection_string?: string;
+  openrouter_api_key?: string;
 }
 
 export type Theme = 'light' | 'dark';

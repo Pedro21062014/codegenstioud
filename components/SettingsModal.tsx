@@ -14,7 +14,7 @@ const testApiKey = async (key: string): Promise<{ success: boolean; message: str
     if (!key) return { success: false, message: 'A chave não pode estar em branco.' };
     try {
         const ai = new GoogleGenAI({ apiKey: key });
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: 'diga "ok"' });
+        const response = await ai.models.generateContent({ model: 'gemini-1.5-flash', contents: 'diga "ok"' });
         if (response.text.trim().toLowerCase() === 'ok') {
             return { success: true, message: 'Conexão bem-sucedida!' };
         }
@@ -28,12 +28,14 @@ const testApiKey = async (key: string): Promise<{ success: boolean; message: str
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
   const [geminiKey, setGeminiKey] = useState(settings.gemini_api_key || '');
   const [githubToken, setGithubToken] = useState(settings.github_access_token || '');
+  const [openRouterKey, setOpenRouterKey] = useState(settings.openrouter_api_key || '');
   const [geminiTestStatus, setGeminiTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' });
   
   useEffect(() => {
     if (isOpen) {
         setGeminiKey(settings.gemini_api_key || '');
         setGithubToken(settings.github_access_token || '');
+        setOpenRouterKey(settings.openrouter_api_key || '');
         setGeminiTestStatus({ status: 'idle', message: '' });
     }
   }, [isOpen, settings]);
@@ -54,6 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
     onSave({ 
       gemini_api_key: geminiKey,
       github_access_token: githubToken,
+      openrouter_api_key: openRouterKey,
     });
     onClose();
   };
@@ -107,6 +110,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                         {geminiTestStatus.message}
                     </p>
                 )}
+            </div>
+
+            <div className="p-4 bg-var-bg-interactive rounded-lg border border-var-border-default">
+                <div className="flex items-center gap-3 mb-2">
+                    <KeyIcon />
+                    <h3 className="font-semibold text-var-fg-default">Chave de API da OpenRouter</h3>
+                </div>
+                <p className="text-xs text-var-fg-muted mb-3">
+                    Sua chave de API da OpenRouter é necessária para usar seus modelos gratuitos. Ela é armazenada com segurança no seu perfil.
+                </p>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="password"
+                        value={openRouterKey}
+                        onChange={(e) => setOpenRouterKey(e.target.value)}
+                        placeholder="Cole sua chave de API aqui (sk-or-...)"
+                        className="w-full p-2 bg-var-bg-subtle border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-var-accent/50"
+                    />
+                </div>
             </div>
 
             <div className="p-4 bg-var-bg-interactive rounded-lg border border-var-border-default">

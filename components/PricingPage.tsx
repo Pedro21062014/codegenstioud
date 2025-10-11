@@ -80,6 +80,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onBack, onNewProject }
                 description="Para projetos pessoais e exploração."
                 features={[
                     "Acesso aos modelos Gemini (requer sua chave de API)",
+                    "Acesso a modelos gratuitos da OpenRouter (requer sua chave)",
                     "Gerações ilimitadas com sua chave",
                     "Suporte da comunidade",
                     "Baixar projetos como ZIP",
