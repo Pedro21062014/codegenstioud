@@ -37,7 +37,6 @@ ${file.content}
 - INTEGRATION - MAPS: If the user asks for a map, integrate OpenStreetMap using the Leaflet.js library.
   - 1. Add Leaflet CSS and JS links to index.html.
   - 2. Create a component that initializes a map centered on a default location.
-- INTEGRATION - OPENROUTER: If the user selects an OpenRouter model, you MUST include 'OPENROUTER_API_KEY' in the 'environmentVariables' field of your JSON response. The application will automatically populate it from user settings.
 - IMPORTANT: You MUST begin your response with a short, single-line "thought" process message explaining what you are about to do, in Portuguese. For example: "Entendido. Criando um aplicativo de lista de tarefas com React e Tailwind." After this line, you MUST add a separator '---' on a new line. Then, begin the main JSON response.
 - You MUST respond with a single, valid JSON object and nothing else. Do not wrap the JSON in markdown backticks or any other text. The JSON object must contain the "message" and "files" keys, and can optionally contain "summary", "environmentVariables", and "supabaseAdminAction".
   - "message": (string) A friendly, conversational message to the user, in Portuguese.
