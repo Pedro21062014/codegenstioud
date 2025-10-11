@@ -182,32 +182,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // FIX: Consolidated session management into a single, reliable onAuthStateChange listener
-  // to prevent race conditions and ensure consistent auth state across the app.
-  useEffect(() => {
-    setIsLoadingData(true);
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        const settings = await fetchUserSettings(session.user);
-        setUserSettings(settings);
-        if (postLoginAction) {
-          postLoginAction();
-          setPostLoginAction(null);
-        }
-      } else {
-        setUserSettings(null);
-      }
-      setIsLoadingData(false);
-    });
-  
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [fetchUserSettings, postLoginAction]);
-
-
-  // --- Project Management & URL Handling ---
+  // --- Project Management & UI Handlers ---
   const handleNewProject = useCallback(() => {
     const startNew = () => {
         setProject(initialProjectState);
@@ -231,9 +206,6 @@ const App: React.FC = () => {
     }
   }, [project, canManipulateHistory, setProject]);
 
-  // FIX: Simplified logout handler. It now only signs the user out,
-  // and the onAuthStateChange listener is responsible for resetting application state,
-  // fixing bugs where the UI wouldn't update correctly on logout.
   const handleLogout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -287,42 +259,6 @@ const App: React.FC = () => {
     }
   }, [project.files.length, savedProjects, setProject, canManipulateHistory]);
 
-  // Effect to handle initial view logic, including URL parsing
-  useEffect(() => {
-    if (view) return; // Already determined
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const projectIdStr = urlParams.get('projectId');
-    
-    if (canManipulateHistory && projectIdStr) {
-      const projectId = parseInt(projectIdStr, 10);
-      const projectExists = savedProjects.some(p => p.id === projectId);
-      if (projectExists) {
-        handleLoadProject(projectId, false); // Load without confirmation
-        setView('editor');
-        return;
-      }
-    }
-    
-    // Fallback to default logic if no valid project ID in URL
-    if (files.length > 0) {
-      setView('editor');
-    } else {
-      setView('welcome');
-    }
-  }, [view, savedProjects, files.length, handleLoadProject, canManipulateHistory]);
-
-
-  useEffect(() => {
-    if (canManipulateHistory) {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('payment') && urlParams.get('payment') === 'success') {
-        setIsProUser(true);
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, [setIsProUser, canManipulateHistory]);
-
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
     if (!session?.user) return;
     
@@ -343,6 +279,134 @@ const App: React.FC = () => {
         setUserSettings(fullSettings);
     }
   }, [session, fetchUserSettings]);
+
+  const handleSaveProject = useCallback(async () => {
+    if (project.files.length === 0) {
+      alert("Não há nada para salvar. Comece a gerar alguns arquivos primeiro.");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const projectId = project.currentProjectId || Date.now();
+
+    const projectData: SavedProject = {
+      id: projectId,
+      name: project.projectName,
+      files: project.files,
+      chat_history: project.chatMessages,
+      env_vars: project.envVars,
+      created_at: savedProjects.find(p => p.id === projectId)?.created_at || now,
+      updated_at: now,
+    };
+
+    setSavedProjects(prev => {
+      const existingIndex = prev.findIndex(p => p.id === projectId);
+      if (existingIndex > -1) {
+        const newProjects = [...prev];
+        newProjects[existingIndex] = projectData;
+        return newProjects;
+      }
+      return [projectData, ...prev];
+    });
+
+    setProject(p => ({ ...p, currentProjectId: projectId }));
+
+    if (canManipulateHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('projectId', String(projectId));
+        window.history.pushState({ path: url.href }, '', url.href);
+    }
+
+    alert(`Projeto "${project.projectName}" salvo localmente!`);
+  }, [project, savedProjects, setSavedProjects, setProject, canManipulateHistory]);
+  
+  const handleDeleteProject = useCallback(async (projectId: number) => {
+    setSavedProjects(prev => prev.filter(p => p.id !== projectId));
+    if (project.currentProjectId === projectId) {
+        handleNewProject();
+        alert("O projeto atual foi excluído. Iniciando um novo projeto.");
+    }
+  }, [setSavedProjects, project, handleNewProject]);
+
+  const handleOpenSettings = useCallback(() => {
+    if (session) {
+        setSettingsOpen(true);
+    } else {
+        // Set the action to be performed after login, then open the auth modal.
+        // We wrap the action in a function to prevent React from trying to execute it as a state updater.
+        setPostLoginAction(() => () => setSettingsOpen(true));
+        setAuthModalOpen(true);
+    }
+  }, [session]);
+
+  const handleRunLocally = useCallback(() => {
+    if (project.files.length === 0) {
+      alert("Não há arquivos para executar. Gere algum código primeiro.");
+      return;
+    }
+    setLocalRunModalOpen(true);
+  }, [project]);
+
+  const handleDownload = useCallback(() => {
+    downloadProjectAsZip(project.files, project.projectName);
+  }, [project.files, project.projectName]);
+
+  const handleProjectImport = useCallback((importedFiles: ProjectFile[]) => {
+    const htmlFile = importedFiles.find(f => f.name.endsWith('index.html')) || importedFiles[0];
+    setProject(p => ({
+        ...p,
+        files: importedFiles,
+        chatMessages: [
+            { role: 'assistant', content: INITIAL_CHAT_MESSAGE },
+            { role: 'assistant', content: `Importei ${importedFiles.length} arquivos. O que você gostaria de construir ou modificar?` }
+        ],
+        activeFile: htmlFile?.name || null,
+        projectName: 'ProjetoImportado',
+    }));
+    
+    setGithubModalOpen(false);
+    setView('editor');
+  }, [setProject]);
+
+  const handleSaveImageToProject = useCallback((base64Data: string, fileName: string) => {
+    const newFile: ProjectFile = { name: `assets/${fileName}`, language: 'image', content: base64Data };
+    setProject(p => {
+        const existingFile = p.files.find(f => f.name === newFile.name);
+        const newFiles = existingFile ? p.files.map(f => f.name === newFile.name ? newFile : f) : [...p.files, newFile];
+        return { ...p, files: newFiles };
+    });
+    alert(`Imagem "${newFile.name}" salva no projeto!`);
+    setImageStudioOpen(false);
+  }, [setProject]);
+
+  const handleDeleteFile = useCallback((fileNameToDelete: string) => {
+    setProject(p => {
+        const updatedFiles = p.files.filter(f => f.name !== fileNameToDelete);
+        let newActiveFile = p.activeFile;
+        if (p.activeFile === fileNameToDelete) {
+            if (updatedFiles.length > 0) {
+                const closingFileIndex = p.files.findIndex(f => f.name === fileNameToDelete);
+                const newActiveIndex = Math.max(0, closingFileIndex - 1);
+                newActiveFile = updatedFiles[newActiveIndex]?.name || null;
+            } else {
+                newActiveFile = null;
+            }
+        }
+        return { ...p, files: updatedFiles, activeFile: newActiveFile };
+    });
+  }, [setProject]);
+
+  const handleRenameFile = useCallback((oldName: string, newName: string) => {
+    if (project.files.some(f => f.name === newName)) {
+        alert(`Um arquivo chamado "${newName}" já existe.`);
+        return;
+    }
+    setProject(p => {
+        const updatedFiles = p.files.map(f => f.name === oldName ? { ...f, name: newName } : f);
+        const newActiveFile = p.activeFile === oldName ? newName : p.activeFile;
+        return { ...p, files: updatedFiles, activeFile: newActiveFile };
+    });
+  }, [project, setProject]);
 
   // --- AI and API Interactions ---
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
@@ -559,76 +623,85 @@ const App: React.FC = () => {
     handleSendMessage(fixPrompt, lastModelUsed.provider, lastModelUsed.model);
   }, [codeError, lastModelUsed, handleSendMessage]);
   
-  // --- UI Handlers and Other Functions ---
-  const handleRunLocally = useCallback(() => {
-    if (project.files.length === 0) {
-      alert("Não há arquivos para executar. Gere algum código primeiro.");
-      return;
-    }
-    setLocalRunModalOpen(true);
-  }, [project]);
-
-  const handleDownload = useCallback(() => {
-    downloadProjectAsZip(project.files, project.projectName);
-  }, [project.files, project.projectName]);
-
-  const handleProjectImport = useCallback((importedFiles: ProjectFile[]) => {
-    const htmlFile = importedFiles.find(f => f.name.endsWith('index.html')) || importedFiles[0];
-    setProject(p => ({
-        ...p,
-        files: importedFiles,
-        chatMessages: [
-            { role: 'assistant', content: INITIAL_CHAT_MESSAGE },
-            { role: 'assistant', content: `Importei ${importedFiles.length} arquivos. O que você gostaria de construir ou modificar?` }
-        ],
-        activeFile: htmlFile?.name || null,
-        projectName: 'ProjetoImportado',
-    }));
-    
-    setGithubModalOpen(false);
-    setView('editor');
-  }, [setProject]);
-
-  const handleSaveImageToProject = useCallback((base64Data: string, fileName: string) => {
-    const newFile: ProjectFile = { name: `assets/${fileName}`, language: 'image', content: base64Data };
-    setProject(p => {
-        const existingFile = p.files.find(f => f.name === newFile.name);
-        const newFiles = existingFile ? p.files.map(f => f.name === newFile.name ? newFile : f) : [...p.files, newFile];
-        return { ...p, files: newFiles };
-    });
-    alert(`Imagem "${newFile.name}" salva no projeto!`);
-    setImageStudioOpen(false);
-  }, [setProject]);
-
-  const handleDeleteFile = useCallback((fileNameToDelete: string) => {
-    setProject(p => {
-        const updatedFiles = p.files.filter(f => f.name !== fileNameToDelete);
-        let newActiveFile = p.activeFile;
-        if (p.activeFile === fileNameToDelete) {
-            if (updatedFiles.length > 0) {
-                const closingFileIndex = p.files.findIndex(f => f.name === fileNameToDelete);
-                const newActiveIndex = Math.max(0, closingFileIndex - 1);
-                newActiveFile = updatedFiles[newActiveIndex]?.name || null;
-            } else {
-                newActiveFile = null;
-            }
+  // --- Effects ---
+  // Consolidated session management into a single, reliable onAuthStateChange listener
+  // to prevent race conditions and ensure consistent auth state across the app.
+  useEffect(() => {
+    setIsLoadingData(true);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        const settings = await fetchUserSettings(session.user);
+        setUserSettings(settings);
+        if (postLoginAction) {
+          postLoginAction();
+          setPostLoginAction(null);
         }
-        return { ...p, files: updatedFiles, activeFile: newActiveFile };
+      } else {
+        setUserSettings(null);
+      }
+      setIsLoadingData(false);
     });
-  }, [setProject]);
-
-  const handleRenameFile = useCallback((oldName: string, newName: string) => {
-    if (project.files.some(f => f.name === newName)) {
-        alert(`Um arquivo chamado "${newName}" já existe.`);
-        return;
-    }
-    setProject(p => {
-        const updatedFiles = p.files.map(f => f.name === oldName ? { ...f, name: newName } : f);
-        const newActiveFile = p.activeFile === oldName ? newName : p.activeFile;
-        return { ...p, files: updatedFiles, activeFile: newActiveFile };
-    });
-  }, [project, setProject]);
   
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchUserSettings, postLoginAction]);
+
+  // Effect to handle initial view logic, including URL parsing
+  useEffect(() => {
+    if (view) return; // Already determined
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectIdStr = urlParams.get('projectId');
+    
+    if (canManipulateHistory && projectIdStr) {
+      const projectId = parseInt(projectIdStr, 10);
+      const projectExists = savedProjects.some(p => p.id === projectId);
+      if (projectExists) {
+        handleLoadProject(projectId, false); // Load without confirmation
+        setView('editor');
+        return;
+      }
+    }
+    
+    // Fallback to default logic if no valid project ID in URL
+    if (files.length > 0) {
+      setView('editor');
+    } else {
+      setView('welcome');
+    }
+  }, [view, savedProjects, files.length, handleLoadProject, canManipulateHistory]);
+
+
+  useEffect(() => {
+    if (canManipulateHistory) {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('payment') && urlParams.get('payment') === 'success') {
+        setIsProUser(true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [setIsProUser, canManipulateHistory]);
+
+  useEffect(() => {
+    if (pendingPrompt) {
+      const { prompt, provider, model, attachments } = pendingPrompt;
+      let shouldRetry = false;
+
+      if (provider === AIProvider.Gemini && effectiveGeminiApiKey) {
+        shouldRetry = true;
+      } else if (provider === AIProvider.OpenRouter && effectiveOpenRouterApiKey) {
+        shouldRetry = true;
+      }
+
+      if (shouldRetry) {
+        setPendingPrompt(null);
+        handleSendMessage(prompt, provider, model, attachments);
+      }
+    }
+  }, [pendingPrompt, effectiveGeminiApiKey, effectiveOpenRouterApiKey, handleSendMessage]);
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) { setSidebarOpen(false); setChatOpen(false); }
