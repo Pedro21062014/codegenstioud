@@ -74,27 +74,24 @@ const ThinkingIndicator = () => (
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, isProUser, onClose }) => {
   const [input, setInput] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<AIProvider>(AIProvider.Gemini);
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>(AI_MODELS[0].id);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const chatEndRef = useRef<HTMLDivElement>(null);
   
   const availableProviders = isProUser ? Object.values(AIProvider) : [AIProvider.Gemini, AIProvider.OpenRouter];
-  const providerModels = AI_MODELS.filter(m => m.provider === selectedProvider);
 
+  // Effect to ensure the selected model is always valid based on user's plan
   useEffect(() => {
-    if (!availableProviders.includes(selectedProvider)) {
-      setSelectedProvider(AIProvider.Gemini);
+    const currentModel = AI_MODELS.find(m => m.id === selectedModel);
+    if (!currentModel || !availableProviders.includes(currentModel.provider)) {
+      // If current model is invalid (e.g., user is no longer pro), default to the first available model
+      const firstAvailableModel = AI_MODELS.find(m => availableProviders.includes(m.provider));
+      if (firstAvailableModel) {
+        setSelectedModel(firstAvailableModel.id);
+      }
     }
-  }, [isProUser, selectedProvider, availableProviders]);
-  
-  useEffect(() => {
-    if (providerModels.length > 0 && !providerModels.some(m => m.id === selectedModel)) {
-        setSelectedModel(providerModels[0].id);
-    }
-  }, [selectedProvider, providerModels, selectedModel]);
+  }, [isProUser, selectedModel, availableProviders]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -104,7 +101,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
     if (e.target.files) {
         setAttachedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
     }
-    // Reset file input to allow selecting the same file again
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
     }
@@ -116,7 +112,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && attachedFiles.length === 0) || !selectedModel) return;
+    const currentModel = AI_MODELS.find(m => m.id === selectedModel);
+    if ((!input.trim() && attachedFiles.length === 0) || !currentModel) return;
 
     try {
         const filePromises = attachedFiles.map(file => {
@@ -132,13 +129,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
         });
 
         const attachments = await Promise.all(filePromises);
-        onSendMessage(input, selectedProvider, selectedModel, attachments);
+        onSendMessage(input, currentModel.provider, currentModel.id, attachments);
         
         setInput('');
         setAttachedFiles([]);
     } catch (error) {
         console.error("Error processing file attachments:", error);
-        // Handle error display to the user if necessary
     }
   };
   
@@ -189,20 +185,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
 
       <div className="p-4 border-t border-var-border-default bg-var-bg-subtle">
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 gap-2 mb-2">
+          <div className="mb-2">
             <select
-              value={selectedProvider}
-              onChange={e => setSelectedProvider(e.target.value as AIProvider)}
-              className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1 text-xs text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
-            >
-              {availableProviders.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <select 
               value={selectedModel}
-              onChange={e => setSelectedModel(e.target.value)}
-              className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1 text-xs w-full text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1.5 text-sm w-full text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
             >
-              {providerModels.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {availableProviders.map(provider => (
+                <optgroup key={provider} label={provider}>
+                  {AI_MODELS.filter(m => m.provider === provider).map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </div>
           {attachedFiles.length > 0 && (

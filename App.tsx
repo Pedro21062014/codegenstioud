@@ -184,27 +184,40 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Error fetching user data:", error);
-      // Handle error state if necessary
     }
   }, []);
 
   useEffect(() => {
+    const initializeSession = async () => {
+      // 1. Get the initial session
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      setSession(initialSession);
+      if (initialSession?.user) {
+        await fetchUserData(initialSession.user);
+      }
+      // 2. Set loading to false after the initial check is complete
+      setIsLoadingData(false);
+    };
+
     setIsLoadingData(true);
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        await fetchUserData(session.user);
+    initializeSession();
+
+    // 3. Set up a listener for subsequent auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
+      if (newSession?.user) {
+        await fetchUserData(newSession.user);
         if (postLoginAction) {
           postLoginAction();
           setPostLoginAction(null);
         }
       } else {
+        // Clear user-specific data on logout
         setUserSettings(null);
         setSavedProjects([]);
       }
-      setIsLoadingData(false);
     });
-  
+
     return () => {
       subscription.unsubscribe();
     };
