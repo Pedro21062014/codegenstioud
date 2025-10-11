@@ -128,7 +128,7 @@ const App: React.FC = () => {
   
   // Alterado de useLocalStorage para useState
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
-  const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects'>();
+  const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects' | undefined>(undefined);
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isChatOpen, setChatOpen] = useState(false);
@@ -447,6 +447,7 @@ const App: React.FC = () => {
         ],
         activeFile: htmlFile?.name || null,
         projectName: 'ProjetoImportado',
+        currentProjectId: null, // Novo projeto importado localmente, ainda não salvo no Supabase
     }));
     
     setGithubModalOpen(false);
@@ -619,7 +620,7 @@ const App: React.FC = () => {
         case AIProvider.DeepSeek:
            fullResponse = await generateCodeStreamWithDeepSeek(prompt, project.files, onChunk, model);
           break;
-        case AIProvider.OpenRouter: // Adicionado OpenRouter
+        case AIProvider.OpenRouter:
            fullResponse = await generateCodeStreamWithOpenRouter(prompt, project.files, currentEnvVars, onChunk, effectiveOpenRouterApiKey!, model);
            break;
         default:
@@ -721,30 +722,34 @@ const App: React.FC = () => {
         const userProjects = await fetchProjects(session.user.id);
         setSavedProjects(userProjects);
 
-        // Check for projectId in URL and load it if it exists and belongs to the user
-        const urlParams = new URLSearchParams(window.location.search);
-        const projectIdStr = urlParams.get('projectId');
-        if (canManipulateHistory && projectIdStr) {
-          const projectId = parseInt(projectIdStr, 10);
-          const projectExistsAndBelongsToUser = userProjects.some(p => p.id === projectId && p.user_id === session.user.id);
-          if (projectExistsAndBelongsToUser) {
-            handleLoadProject(projectId, false); // Load without confirmation
-            setView('editor');
-          } else {
-            // If project doesn't exist or doesn't belong to user, clear URL param
-            urlParams.delete('projectId');
-            window.history.replaceState({ path: url.href }, '', url.href);
-            // Default to welcome or editor if other projects exist
-            setView(userProjects.length > 0 ? 'editor' : 'welcome');
-            if (userProjects.length > 0) {
-                handleLoadProject(userProjects[0].id, false); // Load most recent project
-            }
-          }
-        } else {
-            // If no projectId in URL, default to welcome or editor if other projects exist
-            setView(userProjects.length > 0 ? 'editor' : 'welcome');
-            if (userProjects.length > 0) {
-                handleLoadProject(userProjects[0].id, false); // Load most recent project
+        // Only set the view if it's undefined (initial load) or if it's 'welcome'
+        // This prevents overriding a view set by a user action (like folder import)
+        // if the user is already in the editor.
+        if (view === undefined || view === 'welcome') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectIdStr = urlParams.get('projectId');
+            if (canManipulateHistory && projectIdStr) {
+                const projectId = parseInt(projectIdStr, 10);
+                const projectExistsAndBelongsToUser = userProjects.some(p => p.id === projectId && p.user_id === session.user.id);
+                if (projectExistsAndBelongsToUser) {
+                    handleLoadProject(projectId, false); // Load without confirmation
+                    setView('editor');
+                } else {
+                    // If project doesn't exist or doesn't belong to user, clear URL param
+                    urlParams.delete('projectId');
+                    window.history.replaceState({ path: url.href }, '', url.href);
+                    // Default to welcome or editor if other projects exist
+                    setView(userProjects.length > 0 ? 'editor' : 'welcome');
+                    if (userProjects.length > 0) {
+                        handleLoadProject(userProjects[0].id, false); // Load most recent project
+                    }
+                }
+            } else {
+                // If no projectId in URL, default to welcome or editor if other projects exist
+                setView(userProjects.length > 0 ? 'editor' : 'welcome');
+                if (userProjects.length > 0) {
+                    handleLoadProject(userProjects[0].id, false); // Load most recent project
+                }
             }
         }
 
@@ -753,10 +758,11 @@ const App: React.FC = () => {
           setPostLoginAction(null);
         }
       } else {
+        // User logged out or no session
         setUserSettings(null);
         setSavedProjects([]);
         setProject(initialProjectState); // Reset project state on logout
-        setView('welcome'); // Go to welcome screen on logout
+        setView('welcome'); // Always go to welcome screen on logout
       }
       setIsLoadingData(false);
     });
@@ -764,9 +770,7 @@ const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserSettings, fetchProjects, postLoginAction, canManipulateHistory, handleLoadProject, setProject]);
-
-  // Removed the old useEffect for initial view logic, as it's now handled by onAuthStateChange
+  }, [fetchUserSettings, fetchProjects, postLoginAction, canManipulateHistory, handleLoadProject, setProject, view]);
 
   useEffect(() => {
     if (canManipulateHistory) {
@@ -804,7 +808,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  if (isLoadingData || !view) {
+  if (isLoadingData || view === undefined) { // Check for undefined view
     return (
         <div className={`${theme} flex flex-col items-center justify-center h-screen bg-var-bg-default text-var-fg-default`}>
             <AppLogo className="w-12 h-12 text-var-accent animate-pulse" style={{ animationDuration: '2s' }} />
