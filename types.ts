@@ -49,9 +49,10 @@ export interface UserSettings {
 
 export type Theme = 'light' | 'dark';
 
-// SavedProject agora reflete uma estrutura de armazenamento local
+// SavedProject agora reflete a estrutura da tabela 'projects' do Supabase
 export interface SavedProject {
-  id: number; // ID exclusivo, pode ser um timestamp
+  id: number;
+  user_id: string;
   name: string;
   files: ProjectFile[];
   chat_history: ChatMessage[];

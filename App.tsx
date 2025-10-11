@@ -46,7 +46,6 @@ const InitializingOverlay: React.FC<{ projectName: string; generatingFile: strin
 
   useEffect(() => {
     const timerInterval = setInterval(() => {
-      // Countdown, slowing down near the end for a more realistic feel
       setTimeLeft(prev => {
         if (prev > 10) return prev - 1;
         if (prev > 2) return prev - 0.5;
@@ -126,7 +125,7 @@ const App: React.FC = () => {
   const [project, setProject] = useLocalStorage<ProjectState>('codegen-studio-project', initialProjectState);
   const { files, activeFile, chatMessages, projectName, envVars, currentProjectId } = project;
   
-  const [savedProjects, setSavedProjects] = useLocalStorage<SavedProject[]>('codegen-studio-saved-projects', []);
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects'>();
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -166,19 +165,26 @@ const App: React.FC = () => {
   }, [theme]);
 
   // --- Data Fetching and Auth ---
-  const fetchUserSettings = useCallback(async (user: User): Promise<UserSettings | null> => {
+  const fetchUserData = useCallback(async (user: User) => {
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
-
       if (profileError && profileError.code !== 'PGRST116') throw profileError;
-      return profileData;
+      setUserSettings(profileData);
+
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', user.id);
+      if (projectsError) throw projectsError;
+      setSavedProjects(projectsData || []);
+
     } catch (error) {
-      console.error("Error fetching user settings:", error);
-      return null;
+      console.error("Error fetching user data:", error);
+      // Handle error state if necessary
     }
   }, []);
 
@@ -187,14 +193,14 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
-        const settings = await fetchUserSettings(session.user);
-        setUserSettings(settings);
+        await fetchUserData(session.user);
         if (postLoginAction) {
           postLoginAction();
           setPostLoginAction(null);
         }
       } else {
         setUserSettings(null);
+        setSavedProjects([]);
       }
       setIsLoadingData(false);
     });
@@ -202,7 +208,7 @@ const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserSettings, postLoginAction]);
+  }, [fetchUserData, postLoginAction]);
 
 
   // --- Project Management & URL Handling ---
@@ -271,7 +277,7 @@ const App: React.FC = () => {
         setIsInitializing(false);
         setView('editor');
     } else {
-        alert("Não foi possível carregar o projeto. Ele pode ter sido excluído.");
+        alert("Não foi possível carregar o projeto. Ele pode ter sido excluído ou ainda não foi carregado.");
         if (canManipulateHistory) {
             const url = new URL(window.location.href);
             url.searchParams.delete('projectId');
@@ -281,7 +287,7 @@ const App: React.FC = () => {
   }, [project.files.length, savedProjects, setProject, canManipulateHistory]);
 
   useEffect(() => {
-    if (view) return; 
+    if (isLoadingData || view) return; 
 
     const urlParams = new URLSearchParams(window.location.search);
     const projectIdStr = urlParams.get('projectId');
@@ -301,7 +307,7 @@ const App: React.FC = () => {
     } else {
       setView('welcome');
     }
-  }, [view, savedProjects, files.length, handleLoadProject, canManipulateHistory]);
+  }, [view, savedProjects, files.length, handleLoadProject, canManipulateHistory, isLoadingData]);
 
 
   useEffect(() => {
@@ -323,16 +329,15 @@ const App: React.FC = () => {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('profiles').upsert(settingsData).select().single();
+    const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
     
     if (error) {
         alert(`Erro ao salvar configurações: ${error.message}`);
         console.error("Supabase save settings error:", error);
     } else {
-        const fullSettings = await fetchUserSettings(session.user);
-        setUserSettings(fullSettings);
+        setUserSettings(data);
     }
-  }, [session, fetchUserSettings]);
+  }, [session]);
 
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
     if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
@@ -577,7 +582,7 @@ const App: React.FC = () => {
     handleSendMessage(fixPrompt, lastModelUsed.provider, lastModelUsed.model);
   }, [codeError, lastModelUsed, handleSendMessage]);
   
-  const handleSaveProject = useCallback(() => {
+  const handleSaveProject = useCallback(async () => {
     if (!session) {
       setPostLoginAction(() => () => handleSaveProject());
       setAuthModalOpen(true);
@@ -589,61 +594,60 @@ const App: React.FC = () => {
       return;
     }
 
-    const now = new Date().toISOString();
-    let projectToSave: SavedProject;
-    let newProjectsList: SavedProject[];
+    const projectData = {
+      name: projectName,
+      files,
+      chat_history: chatMessages,
+      env_vars: envVars,
+      user_id: session.user.id,
+      updated_at: new Date().toISOString(),
+    };
 
     if (currentProjectId) {
-      const existingProjectIndex = savedProjects.findIndex(p => p.id === currentProjectId);
-      if (existingProjectIndex !== -1) {
-        projectToSave = {
-          ...savedProjects[existingProjectIndex],
-          name: projectName,
-          files,
-          chat_history: chatMessages,
-          env_vars: envVars,
-          updated_at: now,
-        };
-        newProjectsList = [...savedProjects];
-        newProjectsList[existingProjectIndex] = projectToSave;
+      // Update existing project
+      const { data, error } = await supabase
+        .from('projects')
+        .update(projectData)
+        .eq('id', currentProjectId)
+        .select()
+        .single();
+      
+      if (error) {
+        alert(`Erro ao atualizar o projeto: ${error.message}`);
       } else {
-        projectToSave = {
-          id: Date.now(),
-          name: projectName,
-          files,
-          chat_history: chatMessages,
-          env_vars: envVars,
-          created_at: now,
-          updated_at: now,
-        };
-        newProjectsList = [...savedProjects, projectToSave];
-        setProject(p => ({ ...p, currentProjectId: projectToSave.id }));
+        setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? data : p));
+        alert(`Projeto "${projectName}" atualizado com sucesso!`);
       }
     } else {
-      projectToSave = {
-        id: Date.now(),
-        name: projectName,
-        files,
-        chat_history: chatMessages,
-        env_vars: envVars,
-        created_at: now,
-        updated_at: now,
-      };
-      newProjectsList = [...savedProjects, projectToSave];
-      setProject(p => ({ ...p, currentProjectId: projectToSave.id }));
+      // Insert new project
+      const { data, error } = await supabase
+        .from('projects')
+        .insert(projectData)
+        .select()
+        .single();
+
+      if (error) {
+        alert(`Erro ao salvar o projeto: ${error.message}`);
+      } else {
+        setProject(p => ({ ...p, currentProjectId: data.id }));
+        setSavedProjects([...savedProjects, data]);
+        alert(`Projeto "${projectName}" salvo com sucesso!`);
+      }
     }
+  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject]);
 
-    setSavedProjects(newProjectsList);
-    alert(`Projeto "${projectName}" salvo com sucesso!`);
-
-  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setSavedProjects, setProject]);
-
-  const handleDeleteProject = useCallback((projectId: number) => {
-    setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
-    if (currentProjectId === projectId) {
-      handleNewProject();
+  const handleDeleteProject = useCallback(async (projectId: number) => {
+    const { error } = await supabase.from('projects').delete().eq('id', projectId);
+    if (error) {
+      alert(`Erro ao excluir o projeto: ${error.message}`);
+    } else {
+      setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
+      if (currentProjectId === projectId) {
+        handleNewProject();
+      }
+      alert("Projeto excluído com sucesso.");
     }
-  }, [currentProjectId, setSavedProjects, handleNewProject]);
+  }, [currentProjectId, handleNewProject]);
 
   const handleOpenSettings = () => {
     if (session) {
@@ -677,6 +681,7 @@ const App: React.FC = () => {
         ],
         activeFile: htmlFile?.name || null,
         projectName: 'ProjetoImportado',
+        currentProjectId: null, // It's a new local project until saved
     }));
     
     setGithubModalOpen(false);
@@ -731,7 +736,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  if (isLoadingData || !view) {
+  if (isLoadingData) {
     return (
         <div className={`${theme} flex flex-col items-center justify-center h-screen bg-var-bg-default text-var-fg-default`}>
             <AppLogo className="w-12 h-12 text-var-accent animate-pulse" style={{ animationDuration: '2s' }} />
@@ -821,7 +826,17 @@ const App: React.FC = () => {
           </div>
         );
       default:
-        return <div>Unknown view</div>;
+        return <WelcomeScreen 
+          session={session}
+          onLoginClick={() => setAuthModalOpen(true)}
+          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-flash', [])} 
+          onShowPricing={() => setView('pricing')}
+          onShowProjects={() => setView('projects')}
+          onOpenGithubImport={() => setGithubModalOpen(true)}
+          onFolderImport={handleProjectImport}
+          onNewProject={handleNewProject}
+          onLogout={handleLogout}
+        />;
     }
   };
 
