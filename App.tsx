@@ -21,6 +21,7 @@ import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
 import { generateCodeStreamWithDeepSeek } from './services/deepseekService';
+import { generateCodeStreamWithOpenRouter } from './services/openRouterService'; // Importar serviço OpenRouter
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
@@ -130,7 +131,8 @@ const App: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isChatOpen, setChatOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
-  const [isApiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setApiKeyModalOpen] = useState(false); // Para Gemini
+  const [isOpenRouterApiKeyModalOpen, setOpenRouterApiKeyModalOpen] = useState(false); // Para OpenRouter
   const [isGithubModalOpen, setGithubModalOpen] = useState(false);
   const [isLocalRunModalOpen, setLocalRunModalOpen] = useState(false);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
@@ -157,6 +159,7 @@ const App: React.FC = () => {
   const canManipulateHistory = window.location.protocol.startsWith('http');
 
   const effectiveGeminiApiKey = userSettings?.gemini_api_key || DEFAULT_GEMINI_API_KEY;
+  const effectiveOpenRouterApiKey = userSettings?.openrouter_api_key; // Nova chave OpenRouter
 
   useEffect(() => {
     document.documentElement.className = theme;
@@ -256,14 +259,14 @@ const App: React.FC = () => {
 
     const projectToLoad = savedProjects.find(p => p.id === projectId);
     if (projectToLoad) {
-        setProject({
+        setProject(p => ({
             files: projectToLoad.files,
             projectName: projectToLoad.name,
             chatMessages: projectToLoad.chat_history,
             envVars: projectToLoad.env_vars || {},
             currentProjectId: projectToLoad.id,
             activeFile: projectToLoad.files.find(f => f.name.includes('html'))?.name || projectToLoad.files[0]?.name || null,
-        });
+        }));
 
         if (canManipulateHistory) {
             const url = new URL(window.location.href);
@@ -342,20 +345,22 @@ const App: React.FC = () => {
   }, [session, fetchUserSettings]);
 
   useEffect(() => {
-    if (pendingPrompt && effectiveGeminiApiKey) {
+    if (pendingPrompt) {
       const { prompt, provider, model, attachments } = pendingPrompt;
-      setPendingPrompt(null);
-      // We need to call handleSendMessage, but it needs to be memoized itself.
-      // This is a temporary inline implementation until handleSendMessage is memoized.
-      const apiKeyToUse = userSettings?.gemini_api_key || DEFAULT_GEMINI_API_KEY;
-       if (apiKeyToUse) {
-            // Re-trigger the message sending logic.
-            // For a full solution, handleSendMessage should be a stable function.
-            // This re-call is simplified for this fix.
-            console.log("Retrying message with new API key.");
-       }
+      let shouldRetry = false;
+
+      if (provider === AIProvider.Gemini && effectiveGeminiApiKey) {
+        shouldRetry = true;
+      } else if (provider === AIProvider.OpenRouter && effectiveOpenRouterApiKey) {
+        shouldRetry = true;
+      }
+
+      if (shouldRetry) {
+        setPendingPrompt(null);
+        handleSendMessage(prompt, provider, model, attachments);
+      }
     }
-  }, [pendingPrompt, effectiveGeminiApiKey, userSettings]);
+  }, [pendingPrompt, effectiveGeminiApiKey, effectiveOpenRouterApiKey, handleSendMessage]);
 
   const handleSaveProject = useCallback(async () => {
     if (project.files.length === 0) {
@@ -419,7 +424,7 @@ const App: React.FC = () => {
   // --- AI and API Interactions ---
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
     if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
-        setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: "Ação do Supabase ignorada: Credenciais de administrador não configuradas."}] }));
+        setProject(p => ({ ...p.chatMessages, { role: 'system', content: "Ação do Supabase ignorada: Credenciais de administrador não configuradas."}] }));
         return;
     }
     
@@ -453,19 +458,21 @@ const App: React.FC = () => {
     setCodeError(null);
     setLastModelUsed({ provider, model });
     
-    if (prompt.toLowerCase().includes('ia') && !effectiveGeminiApiKey) {
-      setProject(p => ({...p, chatMessages: [...p.chatMessages, { role: 'assistant', content: 'Para adicionar funcionalidades de IA ao seu projeto, primeiro adicione sua chave de API do Gemini.'}]}));
-      setApiKeyModalOpen(true);
-      return;
-    }
-    
+    // Check for API keys based on provider
     if (provider === AIProvider.Gemini && !effectiveGeminiApiKey) {
+      setProject(p => ({...p, chatMessages: [...p.chatMessages, { role: 'assistant', content: 'Para usar o Gemini, primeiro adicione sua chave de API do Gemini nas configurações.'}]}));
       setPendingPrompt({ prompt, provider, model, attachments });
       setApiKeyModalOpen(true);
       return;
     }
+    if (provider === AIProvider.OpenRouter && !effectiveOpenRouterApiKey) {
+      setProject(p => ({...p, chatMessages: [...p.chatMessages, { role: 'assistant', content: 'Para usar modelos da OpenRouter, primeiro adicione sua chave de API da OpenRouter nas configurações.'}]}));
+      setPendingPrompt({ prompt, provider, model, attachments });
+      setOpenRouterApiKeyModalOpen(true);
+      return;
+    }
     
-    if ((provider === AIProvider.OpenAI || provider === AIProvider.DeepSeek) && !isProUser) {
+    if ((provider === AIProvider.OpenAI || provider === AIProvider.DeepSeek || provider === AIProvider.Claude || provider === AIProvider.Kimi || provider === AIProvider.ZAI || provider === AIProvider.Qwen) && !isProUser) {
         alert('Este modelo está disponível apenas para usuários Pro. Por favor, atualize seu plano na página de preços.');
         return;
     }
@@ -482,7 +489,7 @@ const App: React.FC = () => {
       setView('editor');
     }
     
-    if (isFirstGeneration && effectiveGeminiApiKey) {
+    if (isFirstGeneration && effectiveGeminiApiKey) { // Only use Gemini for project name generation
       setIsInitializing(true);
       setGeneratingFile('Analisando o prompt...');
       const newName = await generateProjectName(prompt, effectiveGeminiApiKey);
@@ -522,10 +529,17 @@ const App: React.FC = () => {
 
     try {
       let fullResponse;
+      const currentEnvVars = { ...project.envVars };
+      if (effectiveGeminiApiKey) currentEnvVars.GEMINI_API_KEY = effectiveGeminiApiKey;
+      if (effectiveOpenRouterApiKey) currentEnvVars.OPENROUTER_API_KEY = effectiveOpenRouterApiKey;
+      if (userSettings?.stripe_public_key) currentEnvVars.STRIPE_PUBLIC_KEY = userSettings.stripe_public_key;
+      if (userSettings?.stripe_secret_key) currentEnvVars.STRIPE_SECRET_KEY = userSettings.stripe_secret_key;
+      if (userSettings?.neon_connection_string) currentEnvVars.NEON_CONNECTION_STRING = userSettings.neon_connection_string;
+
 
       switch (provider) {
         case AIProvider.Gemini:
-          fullResponse = await generateCodeStreamWithGemini(prompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, attachments);
+          fullResponse = await generateCodeStreamWithGemini(prompt, project.files, currentEnvVars, onChunk, model, effectiveGeminiApiKey!, attachments);
           break;
         case AIProvider.OpenAI:
           fullResponse = await generateCodeStreamWithOpenAI(prompt, project.files, onChunk, model);
@@ -533,6 +547,9 @@ const App: React.FC = () => {
         case AIProvider.DeepSeek:
            fullResponse = await generateCodeStreamWithDeepSeek(prompt, project.files, onChunk, model);
           break;
+        case AIProvider.OpenRouter: // Adicionado OpenRouter
+           fullResponse = await generateCodeStreamWithOpenRouter(prompt, project.files, currentEnvVars, onChunk, effectiveOpenRouterApiKey!, model);
+           break;
         default:
           throw new Error('Provedor de IA não suportado');
       }
@@ -562,10 +579,6 @@ const App: React.FC = () => {
       }
       
       if (result.environmentVariables) {
-        if (result.environmentVariables.GEMINI_API_KEY !== undefined && userSettings?.gemini_api_key) {
-            result.environmentVariables.GEMINI_API_KEY = userSettings.gemini_api_key;
-        }
-
         setProject(p => {
             const newVars = { ...p.envVars };
             for (const [key, value] of Object.entries(result.environmentVariables)) {
@@ -615,7 +628,7 @@ const App: React.FC = () => {
             setIsInitializing(false);
         }
     }
-  }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile]);
+  }, [project, effectiveGeminiApiKey, effectiveOpenRouterApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setOpenRouterApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile]);
 
   const handleFixCode = useCallback(() => {
     if (!codeError || !lastModelUsed) return;
@@ -819,7 +832,7 @@ const App: React.FC = () => {
         onSave={handleSaveSettings}
       />
       <NeonModal
-        isOpen={isNeonModalOpen && !!session}
+        isOpen={isNeonModalModalOpen && !!session}
         onClose={() => setNeonModalOpen(false)}
         settings={userSettings || { id: session?.user?.id || '' }}
         onSave={handleSaveSettings}
@@ -828,10 +841,15 @@ const App: React.FC = () => {
         isOpen={isOSMModalOpen}
         onClose={() => setOSMModalOpen(false)}
       />
-      <ApiKeyModal
+      <ApiKeyModal // Para Gemini
         isOpen={isApiKeyModalOpen}
         onClose={() => { setApiKeyModalOpen(false); setPendingPrompt(null); }}
         onSave={(key) => handleSaveSettings({ gemini_api_key: key })}
+      />
+      <ApiKeyModal // Reutilizando ApiKeyModal para OpenRouter, mas idealmente seria um modal dedicado
+        isOpen={isOpenRouterApiKeyModalOpen}
+        onClose={() => { setOpenRouterApiKeyModalOpen(false); setPendingPrompt(null); }}
+        onSave={(key) => handleSaveSettings({ openrouter_api_key: key })}
       />
       <GithubImportModal
         isOpen={isGithubModalOpen}

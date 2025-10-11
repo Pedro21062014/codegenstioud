@@ -25,16 +25,42 @@ const testApiKey = async (key: string): Promise<{ success: boolean; message: str
     }
 };
 
+const testOpenRouterApiKey = async (key: string): Promise<{ success: boolean; message: string }> => {
+    if (!key) return { success: false, message: 'A chave não pode estar em branco.' };
+    try {
+        const response = await fetch("https://openrouter.ai/api/v1/models", {
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'HTTP-Referer': `https://codagem.studio`,
+                'X-Title': `Codagem Studio`,
+            },
+        });
+        if (response.ok) {
+            return { success: true, message: 'Conexão bem-sucedida!' };
+        }
+        const errorData = await response.json();
+        return { success: false, message: `Falha na conexão: ${errorData.error?.message || response.statusText}` };
+    } catch (e: any) {
+        console.error("OpenRouter API Key test failed", e);
+        return { success: false, message: `Falha na conexão: ${e.message}` };
+    }
+};
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
   const [geminiKey, setGeminiKey] = useState(settings.gemini_api_key || '');
   const [githubToken, setGithubToken] = useState(settings.github_access_token || '');
-  const [geminiTestStatus, setGeminiTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' });
+  const [openRouterKey, setOpenRouterKey] = useState(settings.openrouter_api_key || ''); // Novo estado para OpenRouter
   
+  const [geminiTestStatus, setGeminiTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' });
+  const [openRouterTestStatus, setOpenRouterTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' }); // Novo estado para OpenRouter
+
   useEffect(() => {
     if (isOpen) {
         setGeminiKey(settings.gemini_api_key || '');
         setGithubToken(settings.github_access_token || '');
+        setOpenRouterKey(settings.openrouter_api_key || ''); // Resetar chave OpenRouter
         setGeminiTestStatus({ status: 'idle', message: '' });
+        setOpenRouterTestStatus({ status: 'idle', message: '' }); // Resetar status OpenRouter
     }
   }, [isOpen, settings]);
 
@@ -49,11 +75,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
       setGeminiTestStatus({ status: 'error', message: result.message });
     }
   };
+
+  const handleOpenRouterTest = async () => { // Nova função para testar OpenRouter
+    setOpenRouterTestStatus({ status: 'testing', message: 'Testando...' });
+    const result = await testOpenRouterApiKey(openRouterKey);
+    if (result.success) {
+      setOpenRouterTestStatus({ status: 'success', message: result.message });
+    } else {
+      setOpenRouterTestStatus({ status: 'error', message: result.message });
+    }
+  };
   
   const handleSave = () => {
     onSave({ 
       gemini_api_key: geminiKey,
       github_access_token: githubToken,
+      openrouter_api_key: openRouterKey, // Salvar chave OpenRouter
     });
     onClose();
   };
@@ -105,6 +142,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                  {geminiTestStatus.message && (
                     <p className={`text-xs mt-2 ${geminiTestStatus.status === 'success' ? 'text-green-400' : geminiTestStatus.status === 'error' ? 'text-red-400' : 'text-var-fg-muted'}`}>
                         {geminiTestStatus.message}
+                    </p>
+                )}
+            </div>
+
+            {/* Novo campo para a chave de API da OpenRouter */}
+            <div className="p-4 bg-var-bg-interactive rounded-lg border border-var-border-default">
+                <div className="flex items-center gap-3 mb-2">
+                    <KeyIcon />
+                    <h3 className="font-semibold text-var-fg-default">Chave de API da OpenRouter</h3>
+                </div>
+                <p className="text-xs text-var-fg-muted mb-3">
+                    Sua chave de API da OpenRouter é necessária para usar modelos de IA adicionais. Ela é armazenada com segurança no seu perfil.
+                </p>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="password"
+                        value={openRouterKey}
+                        onChange={(e) => {
+                            setOpenRouterKey(e.target.value);
+                            setOpenRouterTestStatus({ status: 'idle', message: '' });
+                        }}
+                        placeholder="Cole sua chave de API aqui"
+                        className="w-full p-2 bg-var-bg-subtle border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-var-accent/50"
+                    />
+                     <button
+                        onClick={handleOpenRouterTest}
+                        disabled={openRouterTestStatus.status === 'testing' || !openRouterKey}
+                        className="px-3 py-2 text-xs font-medium text-var-fg-default bg-var-bg-interactive border border-var-border-default rounded-md hover:bg-var-bg-default disabled:opacity-50 disabled:cursor-wait"
+                     >
+                         {openRouterTestStatus.status === 'testing' ? '...' : 'Testar'}
+                    </button>
+                </div>
+                 {openRouterTestStatus.message && (
+                    <p className={`text-xs mt-2 ${openRouterTestStatus.status === 'success' ? 'text-green-400' : openRouterTestStatus.status === 'error' ? 'text-red-400' : 'text-var-fg-muted'}`}>
+                        {openRouterTestStatus.message}
                     </p>
                 )}
             </div>
