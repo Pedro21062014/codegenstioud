@@ -50,8 +50,8 @@ export const generateCodeStreamWithOpenRouter = async (
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': `https://codegen.studio`, // Recommended by OpenRouter
-        'X-Title': `Codegen Studio`, // Recommended by OpenRouter
+        'HTTP-Referer': `https://codagem.studio`, // Recommended by OpenRouter
+        'X-Title': `Codagem Studio`, // Recommended by OpenRouter
       },
       body: JSON.stringify({
         model: model,

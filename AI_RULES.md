@@ -1,10 +1,10 @@
-# Regras de Desenvolvimento de IA para Codegen Studio
+# Regras de Desenvolvimento de IA para Codagem Studio
 
-Este documento descreve a pilha de tecnologia e as diretrizes para o desenvolvimento de novas funcionalidades e modificações no Codegen Studio.
+Este documento descreve a pilha de tecnologia e as diretrizes para o desenvolvimento de novas funcionalidades e modificações no Codagem Studio.
 
 ## Pilha de Tecnologia
 
-O Codegen Studio é construído com as seguintes tecnologias principais:
+O Codagem Studio é construído com as seguintes tecnologias principais:
 
 *   **Frontend Framework**: React (com componentes funcionais e Hooks).
 *   **Linguagem**: TypeScript para todo o código-fonte.

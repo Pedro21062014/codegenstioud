@@ -26,7 +26,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ projects, onLoadProj
         <div className="container mx-auto flex justify-between items-center">
           <button onClick={onNewProject} className="flex items-center gap-2">
             <AppLogo className="w-6 h-6 text-var-accent" />
-            <span className="text-var-fg-default font-semibold text-lg">codegen<span className="font-light">studio</span></span>
+            <span className="text-var-fg-default font-semibold text-lg">codagem<span className="font-light">studio</span></span>
           </button>
           <button onClick={onBack} className="text-sm text-var-fg-muted hover:text-var-fg-default transition-colors">
             &larr; Voltar
