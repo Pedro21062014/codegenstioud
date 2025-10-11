@@ -21,7 +21,7 @@ import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
 import { generateCodeStreamWithDeepSeek } from './services/deepseekService';
-import { generateCodeStreamWithOpenRouter } from './services/openRouterService'; // Importar serviço OpenRouter
+import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
@@ -122,10 +122,12 @@ const initialProjectState: ProjectState = {
 
 
 const App: React.FC = () => {
-  const [project, setProject] = useLocalStorage<ProjectState>('codegen-studio-project', initialProjectState);
+  // Alterado de useLocalStorage para useState
+  const [project, setProject] = useState<ProjectState>(initialProjectState);
   const { files, activeFile, chatMessages, projectName, envVars, currentProjectId } = project;
   
-  const [savedProjects, setSavedProjects] = useLocalStorage<SavedProject[]>('codegen-studio-saved-projects', []);
+  // Alterado de useLocalStorage para useState
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects'>();
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -143,8 +145,8 @@ const App: React.FC = () => {
   const [isOSMModalOpen, setOSMModalOpen] = useState(false);
   
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
-  const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
-  const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
+  const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false); // Mantido em localStorage
+  const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark'); // Mantido em localStorage
   const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[] } | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
@@ -159,7 +161,7 @@ const App: React.FC = () => {
   const canManipulateHistory = window.location.protocol.startsWith('http');
 
   const effectiveGeminiApiKey = userSettings?.gemini_api_key || DEFAULT_GEMINI_API_KEY;
-  const effectiveOpenRouterApiKey = userSettings?.openrouter_api_key; // Nova chave OpenRouter
+  const effectiveOpenRouterApiKey = userSettings?.openrouter_api_key;
 
   useEffect(() => {
     document.documentElement.className = theme;
@@ -179,6 +181,22 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Error fetching user settings:", error);
       return null;
+    }
+  }, []);
+
+  const fetchProjects = useCallback(async (userId: string): Promise<SavedProject[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      return [];
     }
   }, []);
 
@@ -215,49 +233,68 @@ const App: React.FC = () => {
     // Reset project state and view manually since the listener will only handle auth state.
     // This provides immediate UI feedback.
     setProject(initialProjectState);
+    setSavedProjects([]); // Limpar projetos salvos
     setView('welcome');
     if (canManipulateHistory) {
       const url = new URL(window.location.href);
       url.searchParams.delete('projectId');
       window.history.pushState({ path: url.href }, '', url.href);
     }
-  }, [setProject, canManipulateHistory]);
+  }, [setProject, setSavedProjects, canManipulateHistory]);
 
 
-  const handleLoadProject = useCallback((projectId: number, confirmLoad: boolean = true) => {
+  const handleLoadProject = useCallback(async (projectId: number, confirmLoad: boolean = true) => {
+    if (!session?.user) {
+      alert("Você precisa estar logado para carregar projetos.");
+      return;
+    }
+
     if (confirmLoad && project.files.length > 0 && !window.confirm("Carregar este projeto substituirá seu trabalho local atual. Deseja continuar?")) {
         return;
     }
 
-    const projectToLoad = savedProjects.find(p => p.id === projectId);
-    if (projectToLoad) {
-        setProject(p => ({
-            files: projectToLoad.files,
-            projectName: projectToLoad.name,
-            chatMessages: projectToLoad.chat_history,
-            envVars: projectToLoad.env_vars || {},
-            currentProjectId: projectToLoad.id,
-            activeFile: projectToLoad.files.find(f => f.name.includes('html'))?.name || projectToLoad.files[0]?.name || null,
-        }));
+    try {
+      const { data: projectToLoad, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .eq('user_id', session.user.id)
+        .single();
 
-        if (canManipulateHistory) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('projectId', String(projectToLoad.id));
-            window.history.pushState({ path: url.href }, '', url.href);
-        }
-        
-        setCodeError(null);
-        setIsInitializing(false);
-        setView('editor');
-    } else {
-        alert("Não foi possível carregar o projeto. Ele pode ter sido excluído.");
-        if (canManipulateHistory) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('projectId');
-            window.history.pushState({ path: url.href }, '', url.href);
-        }
+      if (error) throw error;
+
+      if (projectToLoad) {
+          setProject(p => ({
+              files: projectToLoad.files,
+              projectName: projectToLoad.name,
+              chatMessages: projectToLoad.chat_history,
+              envVars: projectToLoad.env_vars || {},
+              currentProjectId: projectToLoad.id,
+              activeFile: projectToLoad.files.find(f => f.name.includes('html'))?.name || projectToLoad.files[0]?.name || null,
+          }));
+
+          if (canManipulateHistory) {
+              const url = new URL(window.location.href);
+              url.searchParams.set('projectId', String(projectToLoad.id));
+              window.history.pushState({ path: url.href }, '', url.href);
+          }
+          
+          setCodeError(null);
+          setIsInitializing(false);
+          setView('editor');
+      } else {
+          alert("Não foi possível carregar o projeto. Ele pode ter sido excluído ou você não tem permissão.");
+          if (canManipulateHistory) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('projectId');
+              window.history.pushState({ path: url.href }, '', url.href);
+          }
+      }
+    } catch (err) {
+      console.error("Error loading project from Supabase:", err);
+      alert("Erro ao carregar o projeto.");
     }
-  }, [project.files.length, savedProjects, setProject, canManipulateHistory]);
+  }, [session, project.files.length, setProject, canManipulateHistory]);
 
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
     if (!session?.user) return;
@@ -281,59 +318,107 @@ const App: React.FC = () => {
   }, [session, fetchUserSettings]);
 
   const handleSaveProject = useCallback(async () => {
+    if (!session?.user) {
+      alert("Você precisa estar logado para salvar projetos.");
+      setAuthModalOpen(true);
+      return;
+    }
     if (project.files.length === 0) {
       alert("Não há nada para salvar. Comece a gerar alguns arquivos primeiro.");
       return;
     }
 
     const now = new Date().toISOString();
-    const projectId = project.currentProjectId || Date.now();
-
-    const projectData: SavedProject = {
-      id: projectId,
+    const projectData: Omit<SavedProject, 'id' | 'created_at'> = {
+      user_id: session.user.id,
       name: project.projectName,
       files: project.files,
       chat_history: project.chatMessages,
       env_vars: project.envVars,
-      created_at: savedProjects.find(p => p.id === projectId)?.created_at || now,
       updated_at: now,
     };
 
-    setSavedProjects(prev => {
-      const existingIndex = prev.findIndex(p => p.id === projectId);
-      if (existingIndex > -1) {
-        const newProjects = [...prev];
-        newProjects[existingIndex] = projectData;
-        return newProjects;
+    try {
+      let result;
+      if (project.currentProjectId) {
+        // Update existing project
+        const { data, error } = await supabase
+          .from('projects')
+          .update(projectData)
+          .eq('id', project.currentProjectId)
+          .eq('user_id', session.user.id)
+          .select()
+          .single();
+        result = data;
+        if (error) throw error;
+      } else {
+        // Insert new project
+        const { data, error } = await supabase
+          .from('projects')
+          .insert({ ...projectData, created_at: now })
+          .select()
+          .single();
+        result = data;
+        if (error) throw error;
       }
-      return [projectData, ...prev];
-    });
 
-    setProject(p => ({ ...p, currentProjectId: projectId }));
+      if (result) {
+        setProject(p => ({ ...p, currentProjectId: result.id }));
+        setSavedProjects(prev => {
+          const existingIndex = prev.findIndex(p => p.id === result.id);
+          if (existingIndex > -1) {
+            const newProjects = [...prev];
+            newProjects[existingIndex] = result;
+            return newProjects;
+          }
+          return [result, ...prev];
+        });
 
-    if (canManipulateHistory) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('projectId', String(projectId));
-        window.history.pushState({ path: url.href }, '', url.href);
+        if (canManipulateHistory) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('projectId', String(result.id));
+            window.history.pushState({ path: url.href }, '', url.href);
+        }
+        alert(`Projeto "${result.name}" salvo no Supabase!`);
+      }
+    } catch (error) {
+      console.error("Error saving project to Supabase:", error);
+      alert("Erro ao salvar o projeto.");
     }
-
-    alert(`Projeto "${project.projectName}" salvo localmente!`);
-  }, [project, savedProjects, setSavedProjects, setProject, canManipulateHistory]);
+  }, [session, project, setProject, setSavedProjects, canManipulateHistory]);
   
   const handleDeleteProject = useCallback(async (projectId: number) => {
-    setSavedProjects(prev => prev.filter(p => p.id !== projectId));
-    if (project.currentProjectId === projectId) {
-        handleNewProject();
-        alert("O projeto atual foi excluído. Iniciando um novo projeto.");
+    if (!session?.user) {
+      alert("Você precisa estar logado para excluir projetos.");
+      return;
     }
-  }, [setSavedProjects, project, handleNewProject]);
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId)
+        .eq('user_id', session.user.id);
+
+      if (error) throw error;
+
+      setSavedProjects(prev => prev.filter(p => p.id !== projectId));
+      if (project.currentProjectId === projectId) {
+          handleNewProject();
+          alert("O projeto atual foi excluído. Iniciando um novo projeto.");
+      } else {
+          alert("Projeto excluído com sucesso!");
+      }
+    } catch (error) {
+      console.error("Error deleting project from Supabase:", error);
+      alert("Erro ao excluir o projeto.");
+    }
+  }, [session, project, setSavedProjects, handleNewProject]);
 
   const handleOpenSettings = useCallback(() => {
     if (session) {
         setSettingsOpen(true);
     } else {
-        // Set the action to be performed after login, then open the auth modal.
-        // We wrap the action in a function to prevent React from trying to execute it as a state updater.
         setPostLoginAction(() => () => setSettingsOpen(true));
         setAuthModalOpen(true);
     }
@@ -633,12 +718,45 @@ const App: React.FC = () => {
       if (session?.user) {
         const settings = await fetchUserSettings(session.user);
         setUserSettings(settings);
+        const userProjects = await fetchProjects(session.user.id);
+        setSavedProjects(userProjects);
+
+        // Check for projectId in URL and load it if it exists and belongs to the user
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectIdStr = urlParams.get('projectId');
+        if (canManipulateHistory && projectIdStr) {
+          const projectId = parseInt(projectIdStr, 10);
+          const projectExistsAndBelongsToUser = userProjects.some(p => p.id === projectId && p.user_id === session.user.id);
+          if (projectExistsAndBelongsToUser) {
+            handleLoadProject(projectId, false); // Load without confirmation
+            setView('editor');
+          } else {
+            // If project doesn't exist or doesn't belong to user, clear URL param
+            urlParams.delete('projectId');
+            window.history.replaceState({ path: url.href }, '', url.href);
+            // Default to welcome or editor if other projects exist
+            setView(userProjects.length > 0 ? 'editor' : 'welcome');
+            if (userProjects.length > 0) {
+                handleLoadProject(userProjects[0].id, false); // Load most recent project
+            }
+          }
+        } else {
+            // If no projectId in URL, default to welcome or editor if other projects exist
+            setView(userProjects.length > 0 ? 'editor' : 'welcome');
+            if (userProjects.length > 0) {
+                handleLoadProject(userProjects[0].id, false); // Load most recent project
+            }
+        }
+
         if (postLoginAction) {
           postLoginAction();
           setPostLoginAction(null);
         }
       } else {
         setUserSettings(null);
+        setSavedProjects([]);
+        setProject(initialProjectState); // Reset project state on logout
+        setView('welcome'); // Go to welcome screen on logout
       }
       setIsLoadingData(false);
     });
@@ -646,33 +764,9 @@ const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserSettings, postLoginAction]);
+  }, [fetchUserSettings, fetchProjects, postLoginAction, canManipulateHistory, handleLoadProject, setProject]);
 
-  // Effect to handle initial view logic, including URL parsing
-  useEffect(() => {
-    if (view) return; // Already determined
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const projectIdStr = urlParams.get('projectId');
-    
-    if (canManipulateHistory && projectIdStr) {
-      const projectId = parseInt(projectIdStr, 10);
-      const projectExists = savedProjects.some(p => p.id === projectId);
-      if (projectExists) {
-        handleLoadProject(projectId, false); // Load without confirmation
-        setView('editor');
-        return;
-      }
-    }
-    
-    // Fallback to default logic if no valid project ID in URL
-    if (files.length > 0) {
-      setView('editor');
-    } else {
-      setView('welcome');
-    }
-  }, [view, savedProjects, files.length, handleLoadProject, canManipulateHistory]);
-
+  // Removed the old useEffect for initial view logic, as it's now handled by onAuthStateChange
 
   useEffect(() => {
     if (canManipulateHistory) {
@@ -725,7 +819,6 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          // FIX: Changed default model from gemini-2.5-pro to the recommended gemini-2.5-flash.
           onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-2.5-flash', [])} 
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}

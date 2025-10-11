@@ -51,11 +51,10 @@ export interface UserSettings {
   openrouter_api_key?: string; // Adicionado para OpenRouter
 }
 
-export type Theme = 'light' | 'dark';
-
-// SavedProject agora reflete uma estrutura de armazenamento local
+// SavedProject agora reflete uma estrutura de armazenamento no Supabase
 export interface SavedProject {
-  id: number; // ID exclusivo, pode ser um timestamp
+  id: number; // ID exclusivo do Supabase
+  user_id: string; // ID do usuário do Supabase
   name: string;
   files: ProjectFile[];
   chat_history: ChatMessage[];
@@ -63,3 +62,5 @@ export interface SavedProject {
   created_at: string;
   updated_at: string;
 }
+
+export type Theme = 'light' | 'dark';
