@@ -81,7 +81,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  const availableProviders = isProUser ? Object.values(AIProvider) : [AIProvider.Gemini];
+  const availableProviders = isProUser ? Object.values(AIProvider) : [AIProvider.Gemini, AIProvider.OpenRouter];
   const providerModels = AI_MODELS.filter(m => m.provider === selectedProvider);
 
   useEffect(() => {
