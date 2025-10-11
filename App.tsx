@@ -424,7 +424,7 @@ const App: React.FC = () => {
   // --- AI and API Interactions ---
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
     if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
-        setProject(p => ({ ...p.chatMessages, { role: 'system', content: "Ação do Supabase ignorada: Credenciais de administrador não configuradas."}] }));
+        setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: "Ação do Supabase ignorada: Credenciais de administrador não configuradas."}] }));
         return;
     }
     
@@ -832,7 +832,7 @@ const App: React.FC = () => {
         onSave={handleSaveSettings}
       />
       <NeonModal
-        isOpen={isNeonModalModalOpen && !!session}
+        isOpen={isNeonModalOpen && !!session}
         onClose={() => setNeonModalOpen(false)}
         settings={userSettings || { id: session?.user?.id || '' }}
         onSave={handleSaveSettings}
