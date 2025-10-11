@@ -222,7 +222,7 @@ const App: React.FC = () => {
     } else {
         startNew();
     }
-  }, [project, canManipulateHistory, setProject]);
+  }, [project, canManipulateHistory]);
 
   const handleLogout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
@@ -240,7 +240,7 @@ const App: React.FC = () => {
       url.searchParams.delete('projectId');
       window.history.pushState({ path: url.href }, '', url.href);
     }
-  }, [setProject, setSavedProjects, canManipulateHistory]);
+  }, [canManipulateHistory]);
 
 
   const handleLoadProject = useCallback(async (projectId: number, confirmLoad: boolean = true) => {
@@ -294,7 +294,7 @@ const App: React.FC = () => {
       console.error("Error loading project from Supabase:", err);
       alert("Erro ao carregar o projeto.");
     }
-  }, [session, project.files.length, setProject, canManipulateHistory]);
+  }, [session, project.files.length, canManipulateHistory]);
 
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
     if (!session?.user) return;
@@ -385,7 +385,7 @@ const App: React.FC = () => {
       console.error("Error saving project to Supabase:", error);
       alert("Erro ao salvar o projeto.");
     }
-  }, [session, project, setProject, setSavedProjects, canManipulateHistory]);
+  }, [session, project, canManipulateHistory]);
   
   const handleDeleteProject = useCallback(async (projectId: number) => {
     if (!session?.user) {
@@ -413,7 +413,7 @@ const App: React.FC = () => {
       console.error("Error deleting project from Supabase:", error);
       alert("Erro ao excluir o projeto.");
     }
-  }, [session, project, setSavedProjects, handleNewProject]);
+  }, [session, project, handleNewProject]);
 
   const handleOpenSettings = useCallback(() => {
     if (session) {
@@ -452,7 +452,7 @@ const App: React.FC = () => {
     
     setGithubModalOpen(false);
     setView('editor');
-  }, [setProject]);
+  }, []);
 
   const handleSaveImageToProject = useCallback((base64Data: string, fileName: string) => {
     const newFile: ProjectFile = { name: `assets/${fileName}`, language: 'image', content: base64Data };
@@ -463,7 +463,7 @@ const App: React.FC = () => {
     });
     alert(`Imagem "${newFile.name}" salva no projeto!`);
     setImageStudioOpen(false);
-  }, [setProject]);
+  }, []);
 
   const handleDeleteFile = useCallback((fileNameToDelete: string) => {
     setProject(p => {
@@ -480,7 +480,7 @@ const App: React.FC = () => {
         }
         return { ...p, files: updatedFiles, activeFile: newActiveFile };
     });
-  }, [setProject]);
+  }, []);
 
   const handleRenameFile = useCallback((oldName: string, newName: string) => {
     if (project.files.some(f => f.name === newName)) {
@@ -492,7 +492,7 @@ const App: React.FC = () => {
         const newActiveFile = p.activeFile === oldName ? newName : p.activeFile;
         return { ...p, files: updatedFiles, activeFile: newActiveFile };
     });
-  }, [project, setProject]);
+  }, [project]);
 
   // --- AI and API Interactions ---
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
@@ -525,7 +525,7 @@ const App: React.FC = () => {
         const message = err instanceof Error ? err.message : "Falha na comunicação com a função de back-end.";
         setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'system', content: `Erro ao executar a consulta SQL: ${message}` }] }));
     }
-  }, [userSettings, setProject]);
+  }, [userSettings]);
 
   const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[] = []) => {
     setCodeError(null);
@@ -701,7 +701,7 @@ const App: React.FC = () => {
             setIsInitializing(false);
         }
     }
-  }, [project, effectiveGeminiApiKey, effectiveOpenRouterApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setOpenRouterApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile]);
+  }, [project, effectiveGeminiApiKey, effectiveOpenRouterApiKey, isProUser, view, userSettings, handleSupabaseAdminAction]);
 
   const handleFixCode = useCallback(() => {
     if (!codeError || !lastModelUsed) return;
@@ -722,35 +722,21 @@ const App: React.FC = () => {
         const userProjects = await fetchProjects(session.user.id);
         setSavedProjects(userProjects);
 
-        // Check for projectId in URL and load it if it exists and belongs to the user
         const urlParams = new URLSearchParams(window.location.search);
         const projectIdStr = urlParams.get('projectId');
         
-        // Define 'url' here to be accessible in both branches
-        const url = new URL(window.location.href); 
-
         if (canManipulateHistory && projectIdStr) {
           const projectId = parseInt(projectIdStr, 10);
-          const projectExistsAndBelongsToUser = userProjects.some(p => p.id === projectId && p.user_id === session.user.id);
-          if (projectExistsAndBelongsToUser) {
-            handleLoadProject(projectId, false); // Load without confirmation
-            setView('editor');
+          if (userProjects.some(p => p.id === projectId)) {
+            handleLoadProject(projectId, false);
           } else {
-            // If project doesn't exist or doesn't belong to user, clear URL param
-            urlParams.delete('projectId');
-            window.history.replaceState({ path: url.href }, '', url.href); 
-            // Default to welcome or editor if other projects exist
-            setView(userProjects.length > 0 ? 'editor' : 'welcome');
-            if (userProjects.length > 0) {
-                handleLoadProject(userProjects[0].id, false); // Load most recent project
-            }
+            const url = new URL(window.location.href);
+            url.searchParams.delete('projectId');
+            window.history.replaceState({ path: url.href }, '', url.href);
+            if (view === undefined) setView('welcome');
           }
-        } else {
-            // If no projectId in URL, default to welcome or editor if other projects exist
-            setView(userProjects.length > 0 ? 'editor' : 'welcome');
-            if (userProjects.length > 0) {
-                handleLoadProject(userProjects[0].id, false); // Load most recent project
-            }
+        } else if (view === undefined) {
+          setView('welcome');
         }
 
         if (postLoginAction) {
@@ -770,7 +756,7 @@ const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserSettings, fetchProjects, postLoginAction, canManipulateHistory, handleLoadProject, setProject]);
+  }, [fetchUserSettings, fetchProjects, postLoginAction, canManipulateHistory, handleLoadProject, view]);
 
   useEffect(() => {
     if (canManipulateHistory) {
