@@ -182,8 +182,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // FIX: Consolidated session management into a single, reliable onAuthStateChange listener
-  // to prevent race conditions and ensure consistent auth state across the app.
   useEffect(() => {
     setIsLoadingData(true);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -231,17 +229,12 @@ const App: React.FC = () => {
     }
   }, [project, canManipulateHistory, setProject]);
 
-  // FIX: Simplified logout handler. It now only signs the user out,
-  // and the onAuthStateChange listener is responsible for resetting application state,
-  // fixing bugs where the UI wouldn't update correctly on logout.
   const handleLogout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       alert(`Erro ao tentar sair: ${error.message}`);
       return;
     }
-    // Reset project state and view manually since the listener will only handle auth state.
-    // This provides immediate UI feedback.
     setProject(initialProjectState);
     setView('welcome');
     if (canManipulateHistory) {
@@ -287,9 +280,8 @@ const App: React.FC = () => {
     }
   }, [project.files.length, savedProjects, setProject, canManipulateHistory]);
 
-  // Effect to handle initial view logic, including URL parsing
   useEffect(() => {
-    if (view) return; // Already determined
+    if (view) return; 
 
     const urlParams = new URLSearchParams(window.location.search);
     const projectIdStr = urlParams.get('projectId');
@@ -298,13 +290,12 @@ const App: React.FC = () => {
       const projectId = parseInt(projectIdStr, 10);
       const projectExists = savedProjects.some(p => p.id === projectId);
       if (projectExists) {
-        handleLoadProject(projectId, false); // Load without confirmation
+        handleLoadProject(projectId, false); 
         setView('editor');
         return;
       }
     }
     
-    // Fallback to default logic if no valid project ID in URL
     if (files.length > 0) {
       setView('editor');
     } else {
@@ -327,22 +318,63 @@ const App: React.FC = () => {
     if (!session?.user) return;
     
     const settingsData = {
-      ...newSettings, // pass only the new settings
+      ...newSettings,
       id: session.user.id,
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
+    const { error } = await supabase.from('profiles').upsert(settingsData).select().single();
     
     if (error) {
         alert(`Erro ao salvar configurações: ${error.message}`);
         console.error("Supabase save settings error:", error);
     } else {
-        // Fetch the full profile again to get a merged view of settings
         const fullSettings = await fetchUserSettings(session.user);
         setUserSettings(fullSettings);
     }
   }, [session, fetchUserSettings]);
+
+  const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
+    if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
+      const errorMessage = "As credenciais do Supabase não estão configuradas. Por favor, adicione-as nas integrações para executar ações de banco de dados.";
+      setProject(p => ({
+        ...p,
+        chatMessages: [...p.chatMessages, { role: 'assistant', content: `Erro: ${errorMessage}` }]
+      }));
+      setSupabaseAdminModalOpen(true);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/supabase-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectUrl: userSettings.supabase_project_url,
+          serviceKey: userSettings.supabase_service_key,
+          query: action.query,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Falha ao executar a ação do Supabase.');
+      }
+
+      setProject(p => ({
+        ...p,
+        chatMessages: [...p.chatMessages, { role: 'system', content: `Ação do banco de dados executada com sucesso.` }]
+      }));
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
+      setProject(p => ({
+        ...p,
+        chatMessages: [...p.chatMessages, { role: 'assistant', content: `Erro ao executar a ação do banco de dados: ${errorMessage}` }]
+      }));
+    }
+  }, [userSettings, setProject]);
 
   const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[] = []) => {
     setCodeError(null);
@@ -534,7 +566,7 @@ const App: React.FC = () => {
     }
 
     if (canProceed) {
-      setPendingPrompt(null); // Clear it before sending
+      setPendingPrompt(null);
       handleSendMessage(prompt, provider, model, attachments);
     }
   }, [pendingPrompt, effectiveGeminiApiKey, userSettings, handleSendMessage]);
@@ -545,7 +577,83 @@ const App: React.FC = () => {
     handleSendMessage(fixPrompt, lastModelUsed.provider, lastModelUsed.model);
   }, [codeError, lastModelUsed, handleSendMessage]);
   
-  // --- UI Handlers and Other Functions ---
+  const handleSaveProject = useCallback(() => {
+    if (!session) {
+      setPostLoginAction(() => () => handleSaveProject());
+      setAuthModalOpen(true);
+      return;
+    }
+
+    if (files.length === 0) {
+      alert("Não é possível salvar um projeto vazio.");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let projectToSave: SavedProject;
+    let newProjectsList: SavedProject[];
+
+    if (currentProjectId) {
+      const existingProjectIndex = savedProjects.findIndex(p => p.id === currentProjectId);
+      if (existingProjectIndex !== -1) {
+        projectToSave = {
+          ...savedProjects[existingProjectIndex],
+          name: projectName,
+          files,
+          chat_history: chatMessages,
+          env_vars: envVars,
+          updated_at: now,
+        };
+        newProjectsList = [...savedProjects];
+        newProjectsList[existingProjectIndex] = projectToSave;
+      } else {
+        projectToSave = {
+          id: Date.now(),
+          name: projectName,
+          files,
+          chat_history: chatMessages,
+          env_vars: envVars,
+          created_at: now,
+          updated_at: now,
+        };
+        newProjectsList = [...savedProjects, projectToSave];
+        setProject(p => ({ ...p, currentProjectId: projectToSave.id }));
+      }
+    } else {
+      projectToSave = {
+        id: Date.now(),
+        name: projectName,
+        files,
+        chat_history: chatMessages,
+        env_vars: envVars,
+        created_at: now,
+        updated_at: now,
+      };
+      newProjectsList = [...savedProjects, projectToSave];
+      setProject(p => ({ ...p, currentProjectId: projectToSave.id }));
+    }
+
+    setSavedProjects(newProjectsList);
+    alert(`Projeto "${projectName}" salvo com sucesso!`);
+
+  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setSavedProjects, setProject]);
+
+  const handleDeleteProject = useCallback((projectId: number) => {
+    setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
+    if (currentProjectId === projectId) {
+      handleNewProject();
+    }
+  }, [currentProjectId, setSavedProjects, handleNewProject]);
+
+  const handleOpenSettings = () => {
+    if (session) {
+      setSettingsOpen(true);
+    } else {
+      setPostLoginAction(() => () => setSettingsOpen(true));
+      setAuthModalOpen(true);
+    }
+  };
+
   const handleRunLocally = useCallback(() => {
     if (project.files.length === 0) {
       alert("Não há arquivos para executar. Gere algum código primeiro.");
