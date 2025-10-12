@@ -272,12 +272,7 @@ export const CodePreview: React.FC<{ files: ProjectFile[]; onError: (errorMessag
     
     setIframeSrc(undefined); // Show loading state
 
-    const loadingBlob = new Blob([LOADING_HTML], {type: 'text/html'});
-    const loadingUrl = URL.createObjectURL(loadingBlob);
-    setIframeSrc(loadingUrl);
-
     generatePreview().then(result => {
-      URL.revokeObjectURL(loadingUrl);
       setIframeSrc(result.src);
       urlsToRevoke = result.urlsToRevoke;
     });
