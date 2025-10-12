@@ -12,6 +12,7 @@ export const AI_MODELS: AIModel[] = [
   { id: 'nousresearch/nous-hermes-2-mixtral-8x7b-dpo', name: 'Nous Hermes 2 Mixtral (Free)', provider: AIProvider.OpenRouter },
   { id: 'deepseek/deepseek-coder-v2-lite-instruct', name: 'DeepSeek Coder V2 (OpenRouter)', provider: AIProvider.OpenRouter },
   { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (OpenRouter)', provider: AIProvider.OpenRouter },
+  { id: 'z-ai/glm-4.5-air:free', name: 'ZAI GLM 4.5 (Free)', provider: AIProvider.OpenRouter },
 ];
 
 export const INITIAL_CHAT_MESSAGE = `Olá! Sou seu assistente de codificação de IA. Descreva a aplicação web que você deseja construir. Por exemplo: "Crie um site de portfólio simples com uma página inicial, sobre e de contato."`;

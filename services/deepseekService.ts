@@ -22,7 +22,13 @@ export const generateCodeStreamWithDeepSeek = async (
 
     if (!response.ok || !response.body) {
       const errorText = await response.text();
-      throw new Error(errorText || `HTTP error! status: ${response.status}`);
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.error?.message || `HTTP error! status: ${response.status}`);
+      } catch (parseError) {
+        console.error("Failed to parse error JSON:", parseError);
+        throw new Error(`Erro da API DeepSeek: ${errorText}`);
+      }
     }
 
     const reader = response.body.getReader();

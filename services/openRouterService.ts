@@ -1,5 +1,17 @@
 import { ProjectFile } from '../types';
 
+const fileContentToString = (files: ProjectFile[]): string => {
+  if (files.length === 0) {
+    return "Nenhum arquivo existe ainda.";
+  }
+  return files.map(file => `
+--- FILE: ${file.name} ---
+\`\`\`${file.language}
+${file.content}
+\`\`\`
+`).join('\n');
+};
+
 const getSystemPrompt = (files: ProjectFile[], envVars: Record<string, string>): string => {
   const fileContent = files.map(file => `
 --- FILE: ${file.name} ---
@@ -68,8 +80,13 @@ export const generateCodeStreamWithOpenRouter = async (
 
     if (!response.ok || !response.body) {
       const errorText = await response.text();
-      const errorJson = JSON.parse(errorText);
-      throw new Error(errorJson.error?.message || `HTTP error! status: ${response.status}`);
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.error?.message || `HTTP error! status: ${response.status}`);
+      } catch (parseError) {
+        console.error("Failed to parse error JSON:", parseError);
+        throw new Error(`Erro na API OpenRouter: ${errorText}`);
+      }
     }
     
     const reader = response.body.getReader();

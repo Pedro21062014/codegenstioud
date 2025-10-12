@@ -57,7 +57,7 @@ export const generateCodeStreamWithKimi = async (
       }),
     });
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       const errorData = await response.json();
       throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
     }

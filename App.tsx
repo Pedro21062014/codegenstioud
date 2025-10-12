@@ -28,6 +28,20 @@ import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
+const AI_MODELS_UPDATED = [
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: AIProvider.Gemini },
+  { id: 'gpt-4o', name: 'GPT-4o', provider: AIProvider.OpenAI },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: AIProvider.OpenAI },
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: AIProvider.OpenAI },
+  { id: 'deepseek-coder', name: 'DeepSeek Coder', provider: AIProvider.DeepSeek },
+  { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: AIProvider.DeepSeek },
+  { id: 'mistralai/mistral-7b-instruct-free', name: 'Mistral 7B (Free)', provider: AIProvider.OpenRouter },
+  { id: 'google/gemma-7b-it-free', name: 'Gemma 7B (Free)', provider: AIProvider.OpenRouter },
+  { id: 'nousresearch/nous-hermes-2-mixtral-8x7b-dpo', name: 'Nous Hermes 2 Mixtral (Free)', provider: AIProvider.OpenRouter },
+  { id: 'deepseek/deepseek-coder-v2-lite-instruct', name: 'DeepSeek Coder V2 (OpenRouter)', provider: AIProvider.OpenRouter },
+  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (OpenRouter)', provider: AIProvider.OpenRouter },
+  { id: 'z-ai/glm-4.5-air:free', name: 'ZAI GLM 4.5 (Free)', provider: AIProvider.OpenRouter },
+];
 
 const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; projectName: string }> = ({ onToggleSidebar, onToggleChat, projectName }) => (
   <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
@@ -556,7 +570,7 @@ const App: React.FC = () => {
       setProject(p => {
             const newMessages = [...p.chatMessages];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage?.isThinking) {
+            if (lastMessage?.role === 'assistant') {
                  lastMessage.content = `Erro: ${errorMessageText}`;
                  lastMessage.isThinking = false;
             } else {
