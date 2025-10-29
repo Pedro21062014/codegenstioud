@@ -11,6 +11,7 @@ export enum IntegrationProvider {
   Stripe = 'Stripe',
   OpenStreetMap = 'OpenStreetMap',
   Neon = 'Neon',
+  GoogleCloud = 'GoogleCloud',
 }
 
 export interface AIModel {
@@ -45,6 +46,8 @@ export interface UserSettings {
   stripe_secret_key?: string;
   neon_connection_string?: string;
   openrouter_api_key?: string;
+  gcp_project_id?: string;
+  gcp_credentials?: string; // JSON string of service account key
 }
 
 export type Theme = 'light' | 'dark';

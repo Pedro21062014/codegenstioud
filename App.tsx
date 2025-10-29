@@ -16,6 +16,7 @@ import { SupabaseAdminModal } from './components/SupabaseAdminModal';
 import { StripeModal } from './components/StripeModal';
 import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
+import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject } from './types';
 import { downloadProjectAsZip } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
@@ -26,10 +27,11 @@ import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
+import { addDailyCredits } from './services/creditService';
 import type { Session, User } from '@supabase/supabase-js';
 
 const AI_MODELS_UPDATED = [
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: AIProvider.Gemini },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: AIProvider.Gemini },
   { id: 'gpt-4o', name: 'GPT-4o', provider: AIProvider.OpenAI },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: AIProvider.OpenAI },
   { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: AIProvider.OpenAI },
@@ -43,15 +45,17 @@ const AI_MODELS_UPDATED = [
   { id: 'z-ai/glm-4.5-air:free', name: 'ZAI GLM 4.5 (Free)', provider: AIProvider.OpenRouter },
 ];
 
-const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; projectName: string }> = ({ onToggleSidebar, onToggleChat, projectName }) => (
+const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; projectName: string; session: Session | null }> = ({ onToggleSidebar, onToggleChat, projectName, session }) => (
   <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
     <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
       <MenuIcon />
     </button>
     <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
-    <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
-      <ChatIcon />
-    </button>
+    <div className="flex items-center gap-2">
+      <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+        <ChatIcon />
+      </button>
+    </div>
   </div>
 );
 
@@ -155,6 +159,7 @@ const App: React.FC = () => {
   const [isStripeModalOpen, setStripeModalOpen] = useState(false);
   const [isNeonModalOpen, setNeonModalOpen] = useState(false);
   const [isOSMModalOpen, setOSMModalOpen] = useState(false);
+  const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
   
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
@@ -164,7 +169,29 @@ const App: React.FC = () => {
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
   const [codeError, setCodeError] = useState<string | null>(null);
-  const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-1.5-flash' });
+  const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-2.0-flash' });
+  const [dailyUsage, setDailyUsage] = useState<number>(0);
+
+  // Load daily usage from localStorage
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const stored = localStorage.getItem('dailyUsage');
+    const storedDate = localStorage.getItem('dailyUsageDate');
+
+    if (storedDate === today && stored) {
+      setDailyUsage(parseInt(stored, 10));
+    } else {
+      // Reset for new day
+      setDailyUsage(0);
+      localStorage.setItem('dailyUsage', '0');
+      localStorage.setItem('dailyUsageDate', today);
+    }
+  }, []);
+
+  // Save daily usage to localStorage
+  useEffect(() => {
+    localStorage.setItem('dailyUsage', dailyUsage.toString());
+  }, [dailyUsage]);
 
   const [session, setSession] = useState<Session | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -485,6 +512,23 @@ const App: React.FC = () => {
         }
     };
 
+    // Check daily usage limit for Gemini with default API key
+    if (provider === AIProvider.Gemini && effectiveGeminiApiKey === DEFAULT_GEMINI_API_KEY) {
+      if (!session?.user) {
+        alert('Você precisa estar logado para usar o Gemini com a chave padrão.');
+        setIsInitializing(false);
+        return;
+      }
+      if (!isProUser && dailyUsage >= 8) {
+        alert('Você atingiu o limite diário de 8 usos do Gemini. Atualize para o plano Pro para uso ilimitado ou adicione sua própria chave API.');
+        setIsInitializing(false);
+        return;
+      }
+      if (!isProUser) {
+        setDailyUsage(prev => prev + 1);
+      }
+    }
+
     try {
       let fullResponse;
 
@@ -610,7 +654,9 @@ const App: React.FC = () => {
   }, [codeError, lastModelUsed, handleSendMessage]);
   
   const handleSaveProject = useCallback(async () => {
+    console.log('handleSaveProject called');
     if (!session) {
+      console.log('No session, opening auth modal');
       setPostLoginAction(() => () => handleSaveProject());
       setAuthModalOpen(true);
       return;
@@ -620,6 +666,8 @@ const App: React.FC = () => {
       alert("Não é possível salvar um projeto vazio.");
       return;
     }
+
+    console.log('Saving project:', projectName, files.length, 'files');
 
     const projectData = {
       name: projectName,
@@ -632,21 +680,25 @@ const App: React.FC = () => {
 
     if (currentProjectId) {
       // Update existing project
+      console.log('Updating existing project:', currentProjectId);
       const { data, error } = await supabase
         .from('projects')
         .update(projectData)
         .eq('id', currentProjectId)
         .select()
         .single();
-      
+
       if (error) {
+        console.error('Update error:', error);
         alert(`Erro ao atualizar o projeto: ${error.message}`);
       } else {
+        console.log('Update success:', data);
         setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? data : p));
         alert(`Projeto "${projectName}" atualizado com sucesso!`);
       }
     } else {
       // Insert new project
+      console.log('Inserting new project');
       const { data, error } = await supabase
         .from('projects')
         .insert(projectData)
@@ -654,8 +706,10 @@ const App: React.FC = () => {
         .single();
 
       if (error) {
+        console.error('Insert error:', error);
         alert(`Erro ao salvar o projeto: ${error.message}`);
       } else {
+        console.log('Insert success:', data);
         setProject(p => ({ ...p, currentProjectId: data.id }));
         setSavedProjects([...savedProjects, data]);
         alert(`Projeto "${projectName}" salvo com sucesso!`);
@@ -763,14 +817,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  if (isLoadingData) {
-    return (
-        <div className={`${theme} flex flex-col items-center justify-center h-screen bg-var-bg-default text-var-fg-default`}>
-            <AppLogo className="w-12 h-12 text-var-accent animate-pulse" style={{ animationDuration: '2s' }} />
-            <p className="mt-4 text-lg">Carregando...</p>
-        </div>
-    );
-  }
+
 
   const mainContent = () => {
     switch (view) {
@@ -778,7 +825,7 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-flash', [])} 
+          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-2.0-flash', [])} 
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -799,7 +846,7 @@ const App: React.FC = () => {
       case 'editor':
         return (
           <div className="flex flex-col h-screen bg-var-bg-default">
-            <Header onToggleSidebar={() => setSidebarOpen(true)} onToggleChat={() => setChatOpen(true)} projectName={projectName} />
+            <Header onToggleSidebar={() => setSidebarOpen(true)} onToggleChat={() => setChatOpen(true)} projectName={projectName} session={session} />
             <div className="flex flex-1 overflow-hidden relative">
               {isInitializing && <InitializingOverlay projectName={projectName} generatingFile={generatingFile} />}
               <div className="hidden lg:block w-[320px] flex-shrink-0">
@@ -808,13 +855,13 @@ const App: React.FC = () => {
                   onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)} onOpenSupabaseAdmin={() => setSupabaseAdminModalOpen(true)}
                   onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject} onOpenImageStudio={() => setImageStudioOpen(true)}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
-                  onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)}
+                  onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)}
                   session={session} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
                 />
               </div>
               
               {isSidebarOpen && (
-                 <div className="absolute top-0 left-0 h-full w-full bg-black/50 z-20 lg:hidden" onClick={() => setSidebarOpen(false)}>
+                 <div className="absolute top-0 left-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setSidebarOpen(false)}>
                     <div className="w-[320px] h-full bg-var-bg-subtle shadow-2xl" onClick={e => e.stopPropagation()}>
                         <Sidebar
                             files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={(file) => {setProject(p => ({...p, activeFile: file})); setSidebarOpen(false);}}
@@ -823,7 +870,7 @@ const App: React.FC = () => {
                             onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
                             onNewProject={handleNewProject} onOpenImageStudio={() => { setImageStudioOpen(true); setSidebarOpen(false); }} onClose={() => setSidebarOpen(false)}
                             onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
-                            onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }}
+                            onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }}
                             session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
                         />
                     </div>
@@ -843,7 +890,7 @@ const App: React.FC = () => {
               </div>
               
               {isChatOpen && (
-                 <div className="absolute top-0 right-0 h-full w-full bg-black/50 z-20 lg:hidden" onClick={() => setChatOpen(false)}>
+                 <div className="absolute top-0 right-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setChatOpen(false)}>
                     <div className="absolute right-0 w-full max-w-sm h-full bg-var-bg-subtle shadow-2xl" onClick={e => e.stopPropagation()}>
                        <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} onClose={() => setChatOpen(false)} />
                     </div>
@@ -856,7 +903,7 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-flash', [])} 
+          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-2.0-flash', [])} 
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -929,6 +976,12 @@ const App: React.FC = () => {
         apiKey={effectiveGeminiApiKey}
         onOpenApiKeyModal={() => { setImageStudioOpen(false); setApiKeyModalOpen(true); }}
        />
+      <GoogleCloudModal
+        isOpen={isGoogleCloudModalOpen && !!session}
+        onClose={() => setGoogleCloudModalOpen(false)}
+        settings={userSettings || { id: session?.user?.id || '' }}
+        onSave={handleSaveSettings}
+      />
     </div>
   );
 };
