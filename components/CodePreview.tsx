@@ -46,13 +46,9 @@ const BASE_IMPORT_MAP = {
 };
 
 
-/**
- * Resolves a relative path from a base file path.
- * E.g., resolvePath('components/Card.tsx', './Icon.tsx') => 'components/Icon.tsx'
- */
 const resolvePath = (base: string, relative: string): string => {
   const stack = base.split('/');
-  stack.pop(); // Remove filename to get directory
+  stack.pop();
   const parts = relative.split('/');
 
   for (const part of parts) {
@@ -66,50 +62,43 @@ const resolvePath = (base: string, relative: string): string => {
   return stack.join('/');
 };
 
+interface CodePreviewProps {
+    files: ProjectFile[];
+    onError: (errorMessage: string) => void;
+    theme: Theme;
+    envVars: Record<string, string>;
+    initialPath: string;
+}
 
-export const CodePreview: React.FC<{ files: ProjectFile[]; onError: (errorMessage: string) => void; theme: Theme; envVars: Record<string, string> }> = ({ files, onError, theme, envVars }) => {
+export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme, envVars, initialPath }) => {
   const [iframeSrc, setIframeSrc] = useState<string | undefined>(undefined);
+  const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     let urlsToRevoke: string[] = [];
 
     const generatePreview = async () => {
-      if (files.length === 0) {
-        return { src: undefined, urlsToRevoke: [] };
-      }
+        if (files.length === 0) return { src: undefined, urls: new Map(), urlsToRevoke: [] };
+        if (!window.Babel) {
+            onError("Babel.js não foi carregado.");
+            const blob = new Blob([LOADING_HTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            return { src: url, urls: new Map(), urlsToRevoke: [url] };
+        }
 
-      if (!window.Babel) {
-        onError("Babel.js não foi carregado.");
-        return { src: URL.createObjectURL(new Blob(['<div class="flex items-center justify-center h-full text-red-400">Babel.js não foi carregado. Não é possível gerar a visualização.</div>'], { type: 'text/html' })), urlsToRevoke: [] };
-      }
-      
-      const allFilesMap = new Map(files.map(f => [f.name, f]));
-      const jsFiles = files.filter(f => /\.(tsx|ts|jsx|js)$/.test(f.name));
-      const cssFiles = files.filter(f => f.name.endsWith('.css'));
-      const imageFiles = files.filter(f => /\.(png|jpe?g|gif|svg|webp)$/i.test(f.name));
-      const htmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.html'));
-      
-      const entryHtmlFile = htmlFiles.find(f => f.name.toLowerCase() === 'index.html') || htmlFiles[0];
+        const allFilesMap = new Map(files.map(f => [f.name, f]));
+        const jsFiles = files.filter(f => /\.(tsx|ts|jsx|js)$/.test(f.name));
+        const cssFiles = files.filter(f => f.name.endsWith('.css'));
+        const imageFiles = files.filter(f => /\.(png|jpe?g|gif|svg|webp)$/i.test(f.name));
+        const htmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.html'));
 
-      if (!entryHtmlFile) {
-        const message = `
-        <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Apenas para Visualização Web</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">A aba "Visualização" foi projetada para renderizar projetos web que contêm um arquivo <code style="background-color: #21262d; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.875rem;">index.html</code>. Para ver o conteúdo de outros arquivos de código, por favor, use a aba "Código".</p></div></body></html>
-        `;
-        const blob = new Blob([message], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        return { src: url, urlsToRevoke: [url] };
-      }
-      
-      // FIX: Changed 'createdUrls' to a let as it is reassigned later.
-      let createdUrls: string[] = [];
-      const importMap = JSON.parse(JSON.stringify(BASE_IMPORT_MAP));
+        let createdUrls: string[] = [];
+        const blobUrls = new Map<string, string>();
+        const importMap = JSON.parse(JSON.stringify(BASE_IMPORT_MAP));
 
-      try {
-        const assetBlobUrls = new Map<string, string>();
-        
-        // 1. Process and create blob URLs for non-HTML assets (CSS, images)
-        for (const file of [...cssFiles, ...imageFiles]) {
-            try {
+        try {
+             // Process assets (CSS, images)
+            for (const file of [...cssFiles, ...imageFiles]) {
                 let blob: Blob;
                 if (file.language === 'image') {
                     const byteCharacters = atob(file.content);
@@ -120,161 +109,108 @@ export const CodePreview: React.FC<{ files: ProjectFile[]; onError: (errorMessag
                     const byteArray = new Uint8Array(byteNumbers);
                     const mimeType = `image/${file.name.split('.').pop() || 'png'}`;
                     blob = new Blob([byteArray], { type: mimeType });
-                } else { // CSS
+                } else {
                     blob = new Blob([file.content], { type: 'text/css' });
                 }
                 const url = URL.createObjectURL(blob);
                 createdUrls.push(url);
-                assetBlobUrls.set(file.name, url);
-            } catch (e) {
-                console.warn(`Could not create blob URL for asset ${file.name}:`, e);
+                blobUrls.set(file.name, url);
             }
-        }
-        
-        // 2. Transpile and create blob URLs for JS/TS files and build import map
-        for (const file of jsFiles) {
-          let content = file.content;
-          
-          const importRegex = /(from\s*|import\s*\()(['"])([^'"]+)(['"])/g;
-          content = content.replace(importRegex, (match, prefix, openQuote, path, closeQuote) => {
-              const isExternal = Object.keys(BASE_IMPORT_MAP.imports).some(pkg => path === pkg || path.startsWith(pkg + '/'));
-              if (isExternal || path.startsWith('http')) return match;
 
-              let absolutePath = path.startsWith('.') ? resolvePath(file.name, path) : path;
-              if (absolutePath.startsWith('/')) absolutePath = absolutePath.substring(1);
+            // Transpile JS/TS files
+            for (const file of jsFiles) {
+                let content = file.content;
+                const importRegex = /(from\s*|import\s*\()(["'])([^"']+)(["'])/g;
+                content = content.replace(importRegex, (match, prefix, openQuote, path, closeQuote) => {
+                    const isExternal = Object.keys(BASE_IMPORT_MAP.imports).some(pkg => path === pkg || path.startsWith(pkg + '/'));
+                    if (isExternal || path.startsWith('http')) return match;
 
-              const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
-              for (const ext of extensions) {
-                  if (allFilesMap.has(absolutePath + ext)) {
-                      return `${prefix}${openQuote}/${absolutePath + ext}${closeQuote}`;
-                  }
-              }
-              console.warn(`Could not resolve local import for path: "${path}" in file: "${file.name}"`);
-              return match;
-          });
-          
-          let transformedCode = content;
-          if (/\.(tsx|ts|jsx)$/.test(file.name)) {
-            transformedCode = window.Babel.transform(content, {
-              presets: ['react', ['typescript', { allExtensions: true, isTSX: file.name.endsWith('.tsx') }]],
-              filename: file.name,
-            }).code;
-          }
+                    let absolutePath = path.startsWith('.') ? resolvePath(file.name, path) : path;
+                    if (absolutePath.startsWith('/')) absolutePath = absolutePath.substring(1);
 
-          const blob = new Blob([transformedCode], { type: 'application/javascript' });
-          const url = URL.createObjectURL(blob);
-          createdUrls.push(url);
-          importMap.imports[`/${file.name}`] = url;
-        }
+                    const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
+                    for (const ext of extensions) {
+                        if (allFilesMap.has(absolutePath + ext)) {
+                            return `${prefix}${openQuote}/${absolutePath + ext}${closeQuote}`;
+                        }
+                    }
+                    return match;
+                });
 
-        // 3. Three-pass process for HTML files to handle inter-linking
-        const processedHtmlContents = new Map<string, string>();
-        const htmlBlobUrls = new Map<string, string>();
-
-        // Pass 1: Replace asset links
-        for (const htmlFile of htmlFiles) {
-            let tempHtml = htmlFile.content;
-            tempHtml = tempHtml.replace(/(src|href)=["']((?:\.\/|\/)?)([^"']+)["']/g, (match, attr, prefix, path) => {
-                const assetPath = resolvePath(htmlFile.name, path);
-                if (assetBlobUrls.has(assetPath)) {
-                  return `${attr}="${assetBlobUrls.get(assetPath)}"`;
-                }
-                return match;
-            });
-            processedHtmlContents.set(htmlFile.name, tempHtml);
-        }
-
-        // Pass 2: Create initial blob URLs for HTML files (with broken HTML links)
-        for (const [name, content] of processedHtmlContents.entries()) {
-            const blob = new Blob([content], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            createdUrls.push(url);
-            htmlBlobUrls.set(name, url);
-        }
-
-        // Pass 3: Re-process HTML content to fix inter-HTML links
-        for (const htmlFile of htmlFiles) {
-            let finalHtml = processedHtmlContents.get(htmlFile.name)!;
-            finalHtml = finalHtml.replace(/<a\s+(?:[^>]*?\s+)?href=(["'])([^"']+?\.html)\1/g, (match, quote, path) => {
-                const resolvedHtmlPath = resolvePath(htmlFile.name, path);
-                if (htmlBlobUrls.has(resolvedHtmlPath)) {
-                    return match.replace(path, htmlBlobUrls.get(resolvedHtmlPath)!);
-                }
-                return match;
-            });
-            processedHtmlContents.set(htmlFile.name, finalHtml);
-        }
-        
-        // 4. Inject scripts and final processing for the entry HTML file
-        let entryHtml = processedHtmlContents.get(entryHtmlFile.name)!;
-        const envContent = `window.process = { env: ${JSON.stringify(envVars)} };`;
-        const envBlob = new Blob([envContent], { type: 'application/javascript' });
-        const envUrl = URL.createObjectURL(envBlob);
-        createdUrls.push(envUrl);
-        
-        const scriptsToInject = `
-          <script src="${envUrl}"></script>
-          <script>document.documentElement.className = '${theme}';</script>
-          <script type="importmap">${JSON.stringify(importMap)}</script>
-        `;
-
-        entryHtml = entryHtml.replace('</head>', `${scriptsToInject}</head>`);
-        
-        // Replace main script src with its blob URL
-        const scriptSrcRegex = /(<script[^>]*src=["'])([^"']+)(["'][^>]*>)/;
-        const match = entryHtml.match(scriptSrcRegex);
-        if (match) {
-            const originalSrc = match[2];
-            let key = originalSrc.startsWith('/') ? originalSrc : resolvePath(entryHtmlFile.name, originalSrc);
-            const blobUrl = importMap.imports[`/${key}`] || importMap.imports[key];
-            if (blobUrl) {
-                entryHtml = entryHtml.replace(originalSrc, blobUrl);
-            } else {
-                console.warn(`Could not find blob URL for main script: ${originalSrc} (resolved to ${key})`);
+                const transformedCode = window.Babel.transform(content, {
+                    presets: ['react', ['typescript', { allExtensions: true, isTSX: file.name.endsWith('.tsx') }]],
+                    filename: file.name,
+                }).code;
+                
+                const blob = new Blob([transformedCode], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                createdUrls.push(url);
+                importMap.imports[`/${file.name}`] = url;
             }
-        }
+
+            // Process HTML files
+            const htmlContents: { [key: string]: string } = {};
+            for (const htmlFile of htmlFiles) {
+                let content = htmlFile.content;
+                content = content.replace(/(src|href)=["']((?:\.\/|\/)?)([^"']+)["']/g, (match, attr, prefix, path) => {
+                    const resolvedPath = resolvePath(htmlFile.name, path);
+                    if (blobUrls.has(resolvedPath)) {
+                        return `${attr}="${blobUrls.get(resolvedPath)}"`;
+                    }
+                     if (allFilesMap.has(resolvedPath) && resolvedPath.endsWith('.html')) {
+                        return `${attr}="/${resolvedPath}"`;
+                    }
+                    return match;
+                });
+                
+                const envContent = `window.process = { env: ${JSON.stringify(envVars)} };`;
+                const scriptContent = `\n                    <script>document.documentElement.className = '${theme}';</script>\n                    <script type="importmap">${JSON.stringify(importMap)}</script>\n                    <script type="module">import '/${jsFiles.find(f => f.name.includes('main') || f.name.includes('index'))?.name}';</script>\n                `;
+                content = content.replace('</head>', `${scriptContent}</head>`);
+                htmlContents[htmlFile.name] = content;
+            }
+            
+            const finalFileUrls = new Map<string, string>();
+            for(const [name, content] of Object.entries(htmlContents)) {
+                const blob = new Blob([content], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                createdUrls.push(url);
+                finalFileUrls.set(`/${name}`, url);
+                if (name === 'index.html') {
+                  finalFileUrls.set('/', url);
+                }
+            }
+
+            const entryPath = finalFileUrls.has(initialPath) ? initialPath : '/';
+            const entryUrl = finalFileUrls.get(entryPath);
+
+            if (!entryUrl) {
+                const message = `
+                <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Página não encontrada</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">O caminho <code>${initialPath}</code> não corresponde a nenhum arquivo HTML no projeto.</p></div></body></html>
+                `;
+                const blob = new Blob([message], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                return { src: url, urls: new Map(), urlsToRevoke: [url] };
+            }
+
+            return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
         
-        // 5. Final blob URL for the entry point
-        const finalBlob = new Blob([entryHtml], { type: 'text/html' });
-        const finalUrl = URL.createObjectURL(finalBlob);
-        createdUrls.push(finalUrl);
-
-        // Update all other HTML blobs to have the final content
-        htmlBlobUrls.forEach((url, name) => URL.revokeObjectURL(url));
-        createdUrls = createdUrls.filter(url => !htmlBlobUrls.has(url));
-
-        for (const [name, content] of processedHtmlContents.entries()) {
-             const finalHtmlBlob = new Blob([content], { type: 'text/html' });
-             const finalHtmlUrl = URL.createObjectURL(finalHtmlBlob);
-             createdUrls.push(finalHtmlUrl);
-             if (name === entryHtmlFile.name) {
-                 //This is our entry point
-             }
+        } catch (error) {
+            console.error("Error generating preview:", error);
+            const errorMessage = error instanceof Error ? error.message : "Unknown error.";
+            onError(errorMessage);
+            const errorBlob = new Blob([`<div class="p-4 text-red-400 bg-var-bg-subtle"><pre>Erro ao gerar a visualização:\n${errorMessage}</pre></div>`], { type: 'text/html' });
+            const errorUrl = URL.createObjectURL(errorBlob);
+            return { src: errorUrl, urls: new Map(), urlsToRevoke: [...createdUrls, errorUrl] };
         }
-        
-        // Find the correct final URL for the entry point
-        const entryBlob = new Blob([entryHtml], { type: 'text/html' });
-        const entryUrl = URL.createObjectURL(entryBlob);
-        createdUrls.push(entryUrl);
-
-
-        return { src: entryUrl, urlsToRevoke: createdUrls };
-
-      } catch (error) {
-          console.error("Erro ao gerar a visualização:", error);
-          const errorMessage = error instanceof Error ? error.message.replace(/ \(\d+:\d+\)$/, '') : "Ocorreu um erro desconhecido.";
-          onError(errorMessage);
-          const errorBlob = new Blob([`<div class="p-4 text-red-400 bg-var-bg-subtle"><pre>Erro ao gerar a visualização:\n${errorMessage}</pre></div>`], { type: 'text/html' });
-          const errorUrl = URL.createObjectURL(errorBlob);
-          return { src: errorUrl, urlsToRevoke: [...createdUrls, errorUrl] };
-      }
     };
-    
-    setIframeSrc(undefined); // Show loading state
+
+    setIframeSrc(undefined);
 
     generatePreview().then(result => {
-      setIframeSrc(result.src);
-      urlsToRevoke = result.urlsToRevoke;
+        setFileUrls(result.urls);
+        const urlToShow = result.urls.get(initialPath) || result.urls.get('/') || result.src;
+        setIframeSrc(urlToShow);
+        urlsToRevoke = result.urlsToRevoke;
     });
 
     return () => {
@@ -282,15 +218,66 @@ export const CodePreview: React.FC<{ files: ProjectFile[]; onError: (errorMessag
     };
   }, [files, onError, theme, envVars]);
 
+ useEffect(() => {
+    const newSrc = fileUrls.get(initialPath) || fileUrls.get('/');
+    if (newSrc && newSrc !== iframeSrc) {
+        setIframeSrc(newSrc);
+    }
+ }, [initialPath, fileUrls]);
+
   return (
-    <div className="w-full h-full bg-var-bg-muted">
-      <iframe
-        key={iframeSrc} // Force re-render when src changes
-        src={iframeSrc}
-        title="Visualização do Projeto"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        className="w-full h-full border-0"
-      />
+    <div className="w-full h-full bg-var-bg-muted flex flex-col">
+      <div className="flex items-center p-2 bg-var-bg-subtle border-b border-var-border-muted">
+        <div className="flex-1">
+          <input
+            type="text"
+            readOnly
+            value={`http://localhost:3000${initialPath}`}
+            className="w-full px-2 py-1 text-sm bg-var-bg-input border border-var-border-input rounded"
+          />
+        </div>
+      </div>
+      <div className="flex-1 w-full h-full">
+        {iframeSrc === undefined && (
+          <div className="flex flex-col items-center justify-center h-full">
+            <p className="text-lg font-medium">Construindo sua aplicação...</p>
+          </div>
+        )}
+        {iframeSrc && (
+          <iframe
+            key={iframeSrc}
+            src={iframeSrc}
+            title="Project Preview"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            className="w-full h-full border-0"
+          />
+        )}
+      </div>
     </div>
   );
 };
+nix
+    { pkgs, ... }: {
+      # Outras configurações Nix, como channel, packages, env, idx.extensions
+      # ...
+
+      idx.previews = {
+        enable = true;
+        previews = {
+          web = {
+            command = [
+              "npm"
+              "run"
+              "start"
+              "--"
+              "--port"
+              "$PORT"
+              "--host"
+              "0.0.0.0"
+              "--disable-host-check"
+            ];
+            manager = "web";
+          };
+        };
+      };
+    }

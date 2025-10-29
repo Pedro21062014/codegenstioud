@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ProjectFile, Theme } from '../types';
 import { CodePreview } from './CodePreview';
-import { CloseIcon, SunIcon, MoonIcon, SparklesIcon, TerminalIcon } from './Icons';
+import { CloseIcon, SunIcon, MoonIcon, SparklesIcon, TerminalIcon, LockClosedIcon, RefreshIcon } from './Icons';
 
 interface EditorViewProps {
   files: ProjectFile[];
@@ -51,8 +51,7 @@ const Toast: React.FC<{ message: string; onFix: () => void; onClose: () => void 
     useEffect(() => {
         const timer = setTimeout(() => {
           onClose();
-        }, 8000); // Auto-dismiss after 8 seconds
-
+        }, 8000);
         return () => clearTimeout(timer);
       }, [onClose]);
 
@@ -84,9 +83,59 @@ const Toast: React.FC<{ message: string; onFix: () => void; onClose: () => void 
     );
 };
 
+interface BrowserFrameProps {
+    children: React.ReactNode;
+    url: string;
+    onUrlChange: (newUrl: string) => void;
+    onRefresh: () => void;
+}
+
+const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange, onRefresh }) => {
+    const [inputValue, setInputValue] = useState(url);
+
+    useEffect(() => {
+        setInputValue(url);
+    }, [url]);
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            onUrlChange(inputValue);
+        }
+    };
+  
+    return (
+      <div className="w-full h-full bg-var-bg-subtle flex flex-col">
+        <div className="flex-shrink-0 bg-var-bg-muted border-b border-var-border-default p-2 flex items-center gap-2">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+          </div>
+          <div className="flex items-center flex-grow bg-var-bg-default rounded-md px-2 py-1 ml-2">
+            <LockClosedIcon className="w-4 h-4 text-var-fg-subtle mr-2" />
+            <input 
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="text-sm text-var-fg-default bg-transparent w-full focus:outline-none"
+            />
+          </div>
+          <button onClick={onRefresh} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+            <RefreshIcon className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-grow overflow-auto">
+          {children}
+        </div>
+      </div>
+    );
+  };
 
 export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, projectName, theme, onThemeChange, onFileSelect, onFileDelete, onRunLocally, codeError, onFixCode, onClearError, onError, envVars }) => {
-  const [viewMode, setViewMode] = useState<'code' | 'preview'>('code');
+  const [viewMode, setViewMode] = useState<'code' | 'preview'>('preview');
+  const [previewUrl, setPreviewUrl] = useState('/');
+  const [previewKey, setPreviewKey] = useState(Date.now());
 
   const selectedFile = files.find(f => f.name === activeFile);
 
@@ -96,6 +145,10 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
         onFileDelete(fileName);
     }
   };
+
+  const handleRefresh = () => {
+      setPreviewKey(Date.now());
+  }
 
   return (
     <div className="flex flex-col h-full bg-var-bg-subtle">
@@ -142,7 +195,9 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
         {viewMode === 'code' ? (
           selectedFile ? <CodeDisplay code={selectedFile.content} /> : <div className="p-4 text-var-fg-muted">Selecione um arquivo para ver seu conteúdo.</div>
         ) : (
-          <CodePreview files={files} onError={onError} theme={theme} envVars={envVars} />
+          <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh}>
+            <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} />
+          </BrowserFrame>
         )}
         {codeError && <Toast message={codeError} onFix={onFixCode} onClose={onClearError} />}
       </div>
