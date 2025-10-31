@@ -1,7 +1,50 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { ProjectFile, Theme } from '../types';
 import { CodePreview } from './CodePreview';
-import { CloseIcon, SunIcon, MoonIcon, SparklesIcon, TerminalIcon, LockClosedIcon, RefreshIcon } from './Icons';
+import { TerminalView } from './TerminalView';
+import { CloseIcon, SunIcon, MoonIcon, SparklesIcon, TerminalIcon, KeyIcon, RefreshIcon } from './Icons';
+
+// Componente de carregamento para o Monaco Editor
+const MonacoEditorLoader = ({ 
+  language, 
+  value, 
+  theme, 
+  onChange, 
+  options 
+}: {
+  language: string;
+  value: string;
+  theme: string;
+  onChange: (value: string | undefined) => void;
+  options: any;
+}) => {
+  const [MonacoEditor, setMonacoEditor] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    import('@monaco-editor/react').then((module) => {
+      setMonacoEditor(() => module.default);
+    });
+  }, []);
+
+  if (!MonacoEditor) {
+    return (
+      <div className="flex items-center justify-center h-full bg-var-bg-subtle">
+        <div className="animate-pulse text-var-fg-muted">Carregando editor...</div>
+      </div>
+    );
+  }
+
+  return (
+    <MonacoEditor
+      height="100%"
+      language={language}
+      value={value}
+      theme={theme}
+      onChange={onChange}
+      options={options}
+    />
+  );
+};
 
 interface EditorViewProps {
   files: ProjectFile[];
@@ -18,12 +61,6 @@ interface EditorViewProps {
   onError: (errorMessage: string) => void;
   envVars: Record<string, string>;
 }
-
-const CodeDisplay: React.FC<{ code: string }> = ({ code }) => (
-    <pre className="p-4 text-sm whitespace-pre-wrap break-words text-var-fg-default">
-      <code className="font-mono">{code}</code>
-    </pre>
-);
 
 const EditorHeader: React.FC<{ projectName: string; onRunLocally: () => void; theme: Theme; onThemeChange: (theme: Theme) => void }> = ({ projectName, onRunLocally, theme, onThemeChange }) => (
     <div className="flex items-center justify-between p-2 border-b border-var-border-default flex-shrink-0">
@@ -112,7 +149,7 @@ const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange,
             <div className="w-3 h-3 rounded-full bg-green-500"></div>
           </div>
           <div className="flex items-center flex-grow bg-var-bg-default rounded-md px-2 py-1 ml-2">
-            <LockClosedIcon className="w-4 h-4 text-var-fg-subtle mr-2" />
+            <KeyIcon className="w-4 h-4 text-var-fg-subtle mr-2" />
             <input 
                 type="text"
                 value={inputValue}
@@ -133,9 +170,11 @@ const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange,
   };
 
 export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, projectName, theme, onThemeChange, onFileSelect, onFileDelete, onRunLocally, codeError, onFixCode, onClearError, onError, envVars }) => {
-  const [viewMode, setViewMode] = useState<'code' | 'preview'>('preview');
+  const [viewMode, setViewMode] = useState<'code' | 'preview' | 'terminal'>('code');
   const [previewUrl, setPreviewUrl] = useState('/');
   const [previewKey, setPreviewKey] = useState(Date.now());
+  const [terminalHeight, setTerminalHeight] = useState('200px');
+  const [isTerminalVisible, setIsTerminalVisible] = useState(false);
 
   const selectedFile = files.find(f => f.name === activeFile);
 
@@ -149,6 +188,81 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
   const handleRefresh = () => {
       setPreviewKey(Date.now());
   }
+
+  const handleTerminalCommand = (command: string) => {
+    console.log('Terminal command executed:', command);
+  };
+
+  const getLanguageFromFileName = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'js':
+      case 'mjs':
+        return 'javascript';
+      case 'ts':
+        return 'typescript';
+      case 'jsx':
+        return 'javascript';
+      case 'tsx':
+        return 'typescriptreact';
+      case 'html':
+        return 'html';
+      case 'css':
+        return 'css';
+      case 'json':
+        return 'json';
+      case 'md':
+        return 'markdown';
+      case 'py':
+        return 'python';
+      case 'java':
+        return 'java';
+      case 'cpp':
+      case 'cc':
+      case 'cxx':
+      case 'c++':
+        return 'cpp';
+      case 'c':
+        return 'c';
+      case 'cs':
+        return 'csharp';
+      case 'go':
+        return 'go';
+      case 'rs':
+        return 'rust';
+      case 'php':
+        return 'php';
+      case 'rb':
+        return 'ruby';
+      case 'swift':
+        return 'swift';
+      case 'kt':
+      case 'kts':
+        return 'kotlin';
+      case 'scala':
+        return 'scala';
+      case 'sh':
+      case 'bash':
+        return 'shell';
+      case 'sql':
+        return 'sql';
+      case 'xml':
+        return 'xml';
+      case 'yaml':
+      case 'yml':
+        return 'yaml';
+      default:
+        return 'plaintext';
+    }
+  };
+
+  const handleEditorChange = (value: string | undefined) => {
+    if (!value || !activeFile) return;
+    
+    // Atualizar o conteúdo do arquivo no estado global
+    // Isso precisará ser implementado no componente pai
+    console.log('File content changed:', activeFile, value);
+  };
 
   return (
     <div className="flex flex-col h-full bg-var-bg-subtle">
@@ -188,17 +302,72 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
           >
             Visualização
           </button>
+          <button
+            onClick={() => {
+              setIsTerminalVisible(!isTerminalVisible);
+              setViewMode('terminal');
+            }}
+            className={`px-3 py-1 text-xs rounded transition-colors ${viewMode === 'terminal' ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}
+          >
+            Terminal
+          </button>
         </div>
       </div>
 
-      <div className="flex-grow overflow-auto bg-var-bg-subtle relative">
-        {viewMode === 'code' ? (
-          selectedFile ? <CodeDisplay code={selectedFile.content} /> : <div className="p-4 text-var-fg-muted">Selecione um arquivo para ver seu conteúdo.</div>
-        ) : (
+      <div className="flex-grow flex flex-col bg-var-bg-subtle relative">
+        {viewMode === 'code' && selectedFile && (
+          <div className="flex-grow">
+            <MonacoEditorLoader
+              language={getLanguageFromFileName(selectedFile.name)}
+              value={selectedFile.content}
+              theme={theme === 'dark' ? 'vs-dark' : 'vs'}
+              onChange={handleEditorChange}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                wordWrap: 'on',
+                tabSize: 2,
+                insertSpaces: true,
+                renderLineHighlight: 'all',
+                selectOnLineNumbers: true,
+                matchBrackets: 'always',
+                bracketPairColorization: {
+                  enabled: true
+                },
+                suggestOnTriggerCharacters: true,
+                quickSuggestions: {
+                  other: true,
+                  comments: true,
+                  strings: true
+                }
+              }}
+            />
+          </div>
+        )}
+        
+        {viewMode === 'code' && !selectedFile && (
+          <div className="flex items-center justify-center h-full text-var-fg-muted">
+            Selecione um arquivo para editar seu conteúdo.
+          </div>
+        )}
+
+        {viewMode === 'preview' && (
           <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh}>
             <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} />
           </BrowserFrame>
         )}
+
+        {viewMode === 'terminal' && (
+          <TerminalView 
+            onCommand={handleTerminalCommand}
+            height={terminalHeight}
+          />
+        )}
+
         {codeError && <Toast message={codeError} onFix={onFixCode} onClose={onClearError} />}
       </div>
     </div>

@@ -1,6 +1,8 @@
 import { AIProvider, AIModel } from './types';
 
 export const AI_MODELS: AIModel[] = [
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: AIProvider.Gemini },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: AIProvider.Gemini },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: AIProvider.Gemini },
   { id: 'gpt-4o', name: 'GPT-4o', provider: AIProvider.OpenAI },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: AIProvider.OpenAI },

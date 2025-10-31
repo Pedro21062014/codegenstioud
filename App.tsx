@@ -17,7 +17,7 @@ import { StripeModal } from './components/StripeModal';
 import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
-import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject } from './types';
+import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode } from './types';
 import { downloadProjectAsZip } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
@@ -27,11 +27,12 @@ import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
-import { addDailyCredits } from './services/creditService';
 import type { Session, User } from '@supabase/supabase-js';
 
 const AI_MODELS_UPDATED = [
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: AIProvider.Gemini },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: AIProvider.Gemini },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: AIProvider.Gemini },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: AIProvider.Gemini }, // Added gemini-2.0-flash
   { id: 'gpt-4o', name: 'GPT-4o', provider: AIProvider.OpenAI },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: AIProvider.OpenAI },
   { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: AIProvider.OpenAI },
@@ -164,12 +165,12 @@ const App: React.FC = () => {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
-  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[] } | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] } | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
   const [codeError, setCodeError] = useState<string | null>(null);
-  const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-2.0-flash' });
+  const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-1.5-pro' });
   const [dailyUsage, setDailyUsage] = useState<number>(0);
 
   // Load daily usage from localStorage
@@ -435,7 +436,7 @@ const App: React.FC = () => {
     }
   }, [userSettings, setProject]);
 
-  const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[] = []) => {
+  const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] = []) => {
     setCodeError(null);
     setLastModelUsed({ provider, model });
     
@@ -446,13 +447,13 @@ const App: React.FC = () => {
     }
     
     if (provider === AIProvider.Gemini && !effectiveGeminiApiKey) {
-      setPendingPrompt({ prompt, provider, model, attachments });
+      setPendingPrompt({ prompt, provider, model, mode, attachments });
       setApiKeyModalOpen(true);
       return;
     }
 
     if (provider === AIProvider.OpenRouter && !userSettings?.openrouter_api_key) {
-      setPendingPrompt({ prompt, provider, model, attachments });
+      setPendingPrompt({ prompt, provider, model, mode, attachments });
       setOpenRouterKeyModalOpen(true);
       return;
     }
@@ -632,7 +633,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!pendingPrompt) return;
 
-    const { prompt, provider, model, attachments } = pendingPrompt;
+    const { prompt, provider, model, mode, attachments } = pendingPrompt;
     let canProceed = false;
 
     if (provider === AIProvider.Gemini && effectiveGeminiApiKey) {
@@ -643,14 +644,14 @@ const App: React.FC = () => {
 
     if (canProceed) {
       setPendingPrompt(null);
-      handleSendMessage(prompt, provider, model, attachments);
+      handleSendMessage(prompt, provider, model, mode, attachments);
     }
   }, [pendingPrompt, effectiveGeminiApiKey, userSettings, handleSendMessage]);
 
   const handleFixCode = useCallback(() => {
     if (!codeError || !lastModelUsed) return;
     const fixPrompt = `O código anterior gerou um erro de visualização: "${codeError}". Por favor, analise os arquivos e corrija o erro. Forneça apenas os arquivos modificados.`;
-    handleSendMessage(fixPrompt, lastModelUsed.provider, lastModelUsed.model);
+    handleSendMessage(fixPrompt, lastModelUsed.provider, lastModelUsed.model, AIMode.Agent); // Default to Agent for fixing code
   }, [codeError, lastModelUsed, handleSendMessage]);
   
   const handleSaveProject = useCallback(async () => {
@@ -825,7 +826,7 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-2.0-flash', [])} 
+          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-pro', AIMode.Chat, [])}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -903,7 +904,7 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-2.0-flash', [])} 
+          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-pro', AIMode.Chat, [])}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}

@@ -163,7 +163,7 @@ export const CloseIcon = ({ className = "w-5 h-5" }: { className?: string }) => 
 export const SparklesIcon = () => (
     <svg {...iconProps} className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
       <path d="M12 3l1.5 4.5h4.5l-3.5 2.5 1.5 4.5-4-3-4 3 1.5-4.5-3.5-2.5h4.5z" />
-      <path d="M3 12l4.5 1.5v4.5l2.5-3.5 4.5 1.5-3-4 3-4 3-4-4.5 1.5-2.5-3.5v4.5z"/>
+      <path d="M3 12l4.5 1.5v4.5l2.5-3.5 4.5 1.5-3-4 3-4-4.5 1.5-2.5-3.5v4.5z"/>
     </svg>
 );
 
@@ -258,5 +258,12 @@ export const ImageIcon = () => (
         <path d="M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12z" />
         <path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5" />
         <path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l2 2" />
+    </svg>
+);
+
+export const RefreshIcon = () => (
+    <svg {...iconProps} className="w-5 h-5" viewBox="0 0 24 24">
+        <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
+        <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
     </svg>
 );

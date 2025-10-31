@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, AIProvider, AIModel } from '../types';
+import { ChatMessage, AIProvider, AIModel, AIMode } from '../types';
 import { AI_MODELS } from '../constants';
 import { SparklesIcon, CloseIcon, AppLogo, PaperclipIcon } from './Icons';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
-  onSendMessage: (prompt: string, provider: AIProvider, model: string, attachments: { data: string; mimeType: string }[]) => void;
+  onSendMessage: (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[]) => void;
   isProUser: boolean;
   onClose?: () => void;
 }
@@ -64,10 +64,11 @@ const MarkdownTable: React.FC<{ markdown: string }> = ({ markdown }) => {
 };
 
 const ThinkingIndicator = () => (
-    <div className="flex items-center space-x-2">
-        <div className="w-2 h-2 bg-var-fg-muted rounded-full animate-pulse"></div>
-        <div className="w-2 h-2 bg-var-fg-muted rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-        <div className="w-2 h-2 bg-var-fg-muted rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+    <div className="flex items-center space-x-2 text-var-fg-muted text-sm">
+        <span>Digitando</span>
+        <div className="w-2 h-2 bg-var-accent rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+        <div className="w-2 h-2 bg-var-accent rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+        <div className="w-2 h-2 bg-var-accent rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
     </div>
 );
 
@@ -75,6 +76,7 @@ const ThinkingIndicator = () => (
 export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, isProUser, onClose }) => {
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>(AI_MODELS[0].id);
+  const [selectedMode, setSelectedMode] = useState<AIMode>(AIMode.Chat);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -129,7 +131,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
         });
 
         const attachments = await Promise.all(filePromises);
-        onSendMessage(input, currentModel.provider, currentModel.id, attachments);
+        onSendMessage(input, currentModel.provider, currentModel.id, selectedMode, attachments);
         
         setInput('');
         setAttachedFiles([]);
@@ -162,7 +164,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                 <div className={`p-3 rounded-lg max-w-xs md:max-w-md ${msg.role === 'user' ? 'bg-var-accent text-var-accent-fg' : 'bg-var-bg-interactive text-var-fg-default'}`}>
                     {msg.isThinking ? (
                         <div className="flex items-center gap-2">
-                            {msg.content && msg.content !== 'Pensando...' && <span className="text-var-fg-default">{msg.content}</span>}
+                            {msg.content && msg.content !== 'Pensando...' && <span className="text-var-fg-default whitespace-pre-wrap">{msg.content}</span>}
                             <ThinkingIndicator />
                         </div>
                     ) : (
@@ -185,22 +187,46 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
 
       <div className="p-4 border-t border-var-border-default bg-var-bg-subtle">
         <form onSubmit={handleSubmit}>
-          <div className="mb-2">
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1.5 text-sm w-full text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
-            >
-              {availableProviders.map(provider => (
-                <optgroup key={provider} label={provider}>
-                  {AI_MODELS.filter(m => m.provider === provider).map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+          <div className="flex flex-col sm:flex-row gap-2 mb-2">
+            <div className="flex-1">
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1.5 text-sm w-full text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
+              >
+                {availableProviders.map(provider => (
+                  <optgroup key={provider} label={provider}>
+                    {AI_MODELS.filter(m => m.provider === provider).map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div className="flex-shrink-0 flex items-center bg-var-bg-interactive border border-var-border-default rounded-md p-1 text-sm">
+              <label className={`px-3 py-1 rounded-md cursor-pointer transition-colors duration-200 ${selectedMode === AIMode.Chat ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-subtle'}`}>
+                <input
+                  type="radio"
+                  value={AIMode.Chat}
+                  checked={selectedMode === AIMode.Chat}
+                  onChange={() => setSelectedMode(AIMode.Chat)}
+                  className="hidden"
+                />
+                Chat
+              </label>
+              <label className={`px-3 py-1 rounded-md cursor-pointer transition-colors duration-200 ${selectedMode === AIMode.Agent ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-subtle'}`}>
+                <input
+                  type="radio"
+                  value={AIMode.Agent}
+                  checked={selectedMode === AIMode.Agent}
+                  onChange={() => setSelectedMode(AIMode.Agent)}
+                  className="hidden"
+                />
+                Agent
+              </label>
+            </div>
           </div>
           {attachedFiles.length > 0 && (
             <div className="mb-2 p-2 border border-var-border-default rounded-md bg-var-bg-interactive space-y-2">

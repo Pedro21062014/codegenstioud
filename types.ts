@@ -14,6 +14,11 @@ export enum IntegrationProvider {
   GoogleCloud = 'GoogleCloud',
 }
 
+export enum AIMode {
+  Chat = 'chat',
+  Agent = 'agent',
+}
+
 export interface AIModel {
   id: string;
   name: string;
