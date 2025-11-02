@@ -17,6 +17,7 @@ import { StripeModal } from './components/StripeModal';
 import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
+import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode } from './types';
 import { downloadProjectAsZip } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
@@ -30,9 +31,6 @@ import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
 const AI_MODELS_UPDATED = [
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: AIProvider.Gemini },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: AIProvider.Gemini },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: AIProvider.Gemini }, // Added gemini-2.0-flash
   { id: 'gpt-4o', name: 'GPT-4o', provider: AIProvider.OpenAI },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: AIProvider.OpenAI },
   { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: AIProvider.OpenAI },
@@ -46,12 +44,28 @@ const AI_MODELS_UPDATED = [
   { id: 'z-ai/glm-4.5-air:free', name: 'ZAI GLM 4.5 (Free)', provider: AIProvider.OpenRouter },
 ];
 
-const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; projectName: string; session: Session | null }> = ({ onToggleSidebar, onToggleChat, projectName, session }) => (
+const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; projectName: string; session: Session | null; selectedModel: { id: string; name: string; provider: AIProvider }; onModelChange: (model: { id: string; name: string; provider: AIProvider }) => void }> = ({ onToggleSidebar, onToggleChat, projectName, session, selectedModel, onModelChange }) => (
   <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
     <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
       <MenuIcon />
     </button>
     <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
+    <select
+      className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm"
+      value={selectedModel.id}
+      onChange={(e) => {
+        const selected = AI_MODELS_UPDATED.find((m) => m.id === e.target.value);
+        if (selected) {
+          onModelChange(selected);
+        }
+      }}
+    >
+      {AI_MODELS_UPDATED.map((model) => (
+        <option key={model.id} value={model.id}>
+          {model.name}
+        </option>
+      ))}
+    </select>
     <div className="flex items-center gap-2">
       <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
         <ChatIcon />
@@ -161,6 +175,7 @@ const App: React.FC = () => {
   const [isNeonModalOpen, setNeonModalOpen] = useState(false);
   const [isOSMModalOpen, setOSMModalOpen] = useState(false);
   const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
+  const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
   
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
@@ -172,6 +187,7 @@ const App: React.FC = () => {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-1.5-pro' });
   const [dailyUsage, setDailyUsage] = useState<number>(0);
+  const [selectedModel, setSelectedModel] = useState<{ id: string; name: string; provider: AIProvider }>(AI_MODELS_UPDATED[0]);
 
   // Load daily usage from localStorage
   useEffect(() => {
@@ -826,7 +842,10 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-pro', AIMode.Chat, [])}
+          onPromptSubmit={(prompt, attachments, aiModel) => {
+            const model = AI_MODELS_UPDATED.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
+            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments);
+          }}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -847,7 +866,14 @@ const App: React.FC = () => {
       case 'editor':
         return (
           <div className="flex flex-col h-screen bg-var-bg-default">
-            <Header onToggleSidebar={() => setSidebarOpen(true)} onToggleChat={() => setChatOpen(true)} projectName={projectName} session={session} />
+            <Header
+              onToggleSidebar={() => setSidebarOpen(true)}
+              onToggleChat={() => setChatOpen(true)}
+              projectName={projectName}
+              session={session}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
             <div className="flex flex-1 overflow-hidden relative">
               {isInitializing && <InitializingOverlay projectName={projectName} generatingFile={generatingFile} />}
               <div className="hidden lg:block w-[320px] flex-shrink-0">
@@ -856,7 +882,7 @@ const App: React.FC = () => {
                   onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)} onOpenSupabaseAdmin={() => setSupabaseAdminModalOpen(true)}
                   onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject} onOpenImageStudio={() => setImageStudioOpen(true)}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
-                  onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)}
+                  onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)} onOpenFirebaseFirestoreModal={() => setFirebaseFirestoreModalOpen(true)}
                   session={session} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
                 />
               </div>
@@ -871,7 +897,7 @@ const App: React.FC = () => {
                             onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
                             onNewProject={handleNewProject} onOpenImageStudio={() => { setImageStudioOpen(true); setSidebarOpen(false); }} onClose={() => setSidebarOpen(false)}
                             onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
-                            onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }}
+                            onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
                             session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
                         />
                     </div>
@@ -883,17 +909,18 @@ const App: React.FC = () => {
                   files={files} activeFile={activeFile} projectName={projectName} theme={theme} onThemeChange={setTheme}
                   onFileSelect={name => setProject(p => ({...p, activeFile: name}))} onFileDelete={handleDeleteFile} onRunLocally={handleRunLocally}
                   codeError={codeError} onFixCode={handleFixCode} onClearError={() => setCodeError(null)} onError={setCodeError} envVars={envVars}
+                  initialPath={activeFile ? `/${activeFile}` : '/index.html'}
                 />
               </main>
               
               <div className="hidden lg:block w-full max-w-sm xl:max-w-md flex-shrink-0">
-                <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} />
+                <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} selectedModel={selectedModel} />
               </div>
               
               {isChatOpen && (
                  <div className="absolute top-0 right-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setChatOpen(false)}>
                     <div className="absolute right-0 w-full max-w-sm h-full bg-var-bg-subtle shadow-2xl" onClick={e => e.stopPropagation()}>
-                       <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} onClose={() => setChatOpen(false)} />
+                       <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} selectedModel={selectedModel} onClose={() => setChatOpen(false)} />
                     </div>
                 </div>
               )}
@@ -904,7 +931,7 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt) => handleSendMessage(prompt, AIProvider.Gemini, 'gemini-1.5-pro', AIMode.Chat, [])}
+          onPromptSubmit={(prompt, attachments) => handleSendMessage(prompt, selectedModel.provider, selectedModel.id, AIMode.Chat, attachments)}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -963,8 +990,9 @@ const App: React.FC = () => {
         onImport={handleProjectImport}
         githubToken={userSettings?.github_access_token}
         onOpenSettings={() => { setGithubModalOpen(false); handleOpenSettings(); }}
+        userSettings={userSettings}
       />
-      <PublishModal 
+      <PublishModal
         isOpen={isLocalRunModalOpen}
         onClose={() => setLocalRunModalOpen(false)}
         onDownload={handleDownload}
@@ -980,6 +1008,12 @@ const App: React.FC = () => {
       <GoogleCloudModal
         isOpen={isGoogleCloudModalOpen && !!session}
         onClose={() => setGoogleCloudModalOpen(false)}
+        settings={userSettings || { id: session?.user?.id || '' }}
+        onSave={handleSaveSettings}
+      />
+      <FirebaseFirestoreModal
+        isOpen={isFirebaseFirestoreModalOpen && !!session}
+        onClose={() => setFirebaseFirestoreModalOpen(false)}
         settings={userSettings || { id: session?.user?.id || '' }}
         onSave={handleSaveSettings}
       />

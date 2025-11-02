@@ -53,6 +53,8 @@ export interface UserSettings {
   openrouter_api_key?: string;
   gcp_project_id?: string;
   gcp_credentials?: string; // JSON string of service account key
+  firebase_project_id?: string;
+  firebase_service_account_key?: string;
 }
 
 export type Theme = 'light' | 'dark';
@@ -67,4 +69,9 @@ export interface SavedProject {
   env_vars: Record<string, string>;
   created_at: string;
   updated_at: string;
+}
+
+export interface TerminalViewProps {
+  onCommand?: (command: string) => void;
+  height?: string;
 }
