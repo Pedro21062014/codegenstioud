@@ -17,7 +17,7 @@ import { StripeModal } from './components/StripeModal';
 import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
-import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal.tsx';
+import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode } from './types';
 import { downloadProjectAsZip } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
