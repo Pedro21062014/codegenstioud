@@ -21,6 +21,8 @@ interface SidebarProps {
   onOpenStripeModal: () => void;
   onOpenNeonModal: () => void;
   onOpenOSMModal: () => void;
+  onOpenFirebaseFirestoreModal: () => void;
+  onOpenGoogleCloudModal: () => void;
   activeFile: string | null;
   onClose?: () => void;
   session: Session | null;
@@ -148,13 +150,13 @@ const EnvironmentPanel: React.FC<{ vars: Record<string, string>, onSave: (vars: 
 };
   
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-    files, 
+export const Sidebar: React.FC<SidebarProps> = ({
+    files,
     envVars,
     onEnvVarChange,
-    onFileSelect, 
-    onDownload, 
-    onOpenSettings, 
+    onFileSelect,
+    onDownload,
+    onOpenSettings,
     onOpenGithubImport,
     onOpenSupabaseAdmin,
     onNewProject,
@@ -166,7 +168,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onOpenStripeModal,
     onOpenNeonModal,
     onOpenOSMModal,
-    activeFile, 
+    onOpenFirebaseFirestoreModal,
+    onOpenGoogleCloudModal,
+    activeFile,
     onClose,
     session,
     onLogin,
@@ -382,11 +386,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <h3 className="font-semibold text-var-fg-default">OpenStreetMap</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Adicione mapas interativos ao seu projeto.</p>
-                        <button 
+                        <button
                             onClick={onOpenOSMModal}
                             className="w-full bg-blue-500/80 hover:bg-blue-500 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
                             Informações
+                        </button>
+                    </div>
+                    <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
+                        <div className="flex items-center gap-3 mb-2">
+                            <DatabaseIcon />
+                            <h3 className="font-semibold text-var-fg-default">Firebase Firestore</h3>
+                        </div>
+                        <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Firebase para operações de banco de dados.</p>
+                        <button
+                            onClick={onOpenFirebaseFirestoreModal}
+                            className="w-full bg-orange-500/80 hover:bg-orange-500 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
+                        >
+                            Configurar
+                        </button>
+                    </div>
+                    <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
+                        <div className="flex items-center gap-3 mb-2">
+                            <DatabaseIcon />
+                            <h3 className="font-semibold text-var-fg-default">Google Cloud</h3>
+                        </div>
+                        <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Google Cloud para serviços backend poderosos.</p>
+                        <button
+                            onClick={onOpenGoogleCloudModal}
+                            className="w-full bg-blue-600/80 hover:bg-blue-600 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
+                        >
+                            Configurar
                         </button>
                     </div>
                 </div>
