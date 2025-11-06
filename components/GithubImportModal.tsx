@@ -13,12 +13,15 @@ interface GithubRepo {
   };
 }
 
+import { UserSettings } from '../types';
+
 interface GithubImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (files: ProjectFile[]) => void;
   githubToken: string | undefined;
   onOpenSettings: () => void;
+  userSettings: UserSettings | null;
 }
 
 const getFileLanguage = (fileName: string): string => {
@@ -50,7 +53,7 @@ const getFileLanguage = (fileName: string): string => {
     }
 }
 
-export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, onClose, onImport, githubToken, onOpenSettings }) => {
+export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, onClose, onImport, githubToken, onOpenSettings, userSettings }) => {
   const [repositories, setRepositories] = useState<GithubRepo[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingRepos, setLoadingRepos] = useState(false);
@@ -276,7 +279,7 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
           <h2 className="text-xl font-semibold text-var-fg-default flex items-center gap-2">
             <GithubIcon /> Importar do GitHub
           </h2>
-          <button onClick={isLoading ? undefined : onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive disabled:opacity-50" disabled={isLoading}>
+          <button onClick={isLoading ? undefined : onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive disabled:opacity-50" disabled={isLoading} aria-label="Fechar modal de importação do GitHub">
             <CloseIcon />
           </button>
         </div>

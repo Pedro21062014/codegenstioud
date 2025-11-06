@@ -20,7 +20,7 @@ import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode } from './types';
 import { downloadProjectAsZip } from './services/projectService';
-import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY } from './constants';
+import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
 import { generateCodeStreamWithDeepSeek } from './services/deepseekService';
@@ -30,23 +30,18 @@ import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
-const AI_MODELS_UPDATED = [
-  { id: 'gpt-4o', name: 'GPT-4o', provider: AIProvider.OpenAI },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: AIProvider.OpenAI },
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: AIProvider.OpenAI },
-  { id: 'deepseek-coder', name: 'DeepSeek Coder', provider: AIProvider.DeepSeek },
-  { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: AIProvider.DeepSeek },
-  { id: 'mistralai/mistral-7b-instruct-free', name: 'Mistral 7B (Free)', provider: AIProvider.OpenRouter },
-  { id: 'google/gemma-7b-it-free', name: 'Gemma 7B (Free)', provider: AIProvider.OpenRouter },
-  { id: 'nousresearch/nous-hermes-2-mixtral-8x7b-dpo', name: 'Nous Hermes 2 Mixtral (Free)', provider: AIProvider.OpenRouter },
-  { id: 'deepseek/deepseek-coder-v2-lite-instruct', name: 'DeepSeek Coder V2 (OpenRouter)', provider: AIProvider.OpenRouter },
-  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (OpenRouter)', provider: AIProvider.OpenRouter },
-  { id: 'z-ai/glm-4.5-air:free', name: 'ZAI GLM 4.5 (Free)', provider: AIProvider.OpenRouter },
-];
+interface HeaderProps {
+  onToggleSidebar: () => void;
+  onToggleChat: () => void;
+  projectName: string;
+  session: Session | null;
+  selectedModel: { id: string; name: string; provider: AIProvider };
+  onModelChange: (model: { id: string; name: string; provider: AIProvider }) => void;
+}
 
-const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; projectName: string; session: Session | null; selectedModel: { id: string; name: string; provider: AIProvider }; onModelChange: (model: { id: string; name: string; provider: AIProvider }) => void }> = ({ onToggleSidebar, onToggleChat, projectName, session, selectedModel, onModelChange }) => (
+const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectName, session, selectedModel, onModelChange }) => (
   <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
-    <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+    <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir barra lateral">
       <MenuIcon />
     </button>
     <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
@@ -54,20 +49,21 @@ const Header: React.FC<{ onToggleSidebar: () => void; onToggleChat: () => void; 
       className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm"
       value={selectedModel.id}
       onChange={(e) => {
-        const selected = AI_MODELS_UPDATED.find((m) => m.id === e.target.value);
+        const selected = AI_MODELS.find((m) => m.id === e.target.value);
         if (selected) {
           onModelChange(selected);
         }
       }}
+      title="Selecionar modelo de IA"
     >
-      {AI_MODELS_UPDATED.map((model) => (
+      {AI_MODELS.map((model) => (
         <option key={model.id} value={model.id}>
           {model.name}
         </option>
       ))}
     </select>
     <div className="flex items-center gap-2">
-      <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+      <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir chat">
         <ChatIcon />
       </button>
     </div>
@@ -187,7 +183,7 @@ const App: React.FC = () => {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-1.5-pro' });
   const [dailyUsage, setDailyUsage] = useState<number>(0);
-  const [selectedModel, setSelectedModel] = useState<{ id: string; name: string; provider: AIProvider }>(AI_MODELS_UPDATED[0]);
+  const [selectedModel, setSelectedModel] = useState<{ id: string; name: string; provider: AIProvider }>(AI_MODELS[0]);
 
   // Load daily usage from localStorage
   useEffect(() => {
@@ -230,18 +226,28 @@ const App: React.FC = () => {
         .select('*')
         .eq('id', user.id)
         .single();
-      if (profileError && profileError.code !== 'PGRST116') throw profileError;
-      setUserSettings(profileData);
+      
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means "no rows found"
+        console.error("Error fetching profile data:", profileError);
+        throw profileError;
+      }
+      setUserSettings(profileData || null); // Ensure userSettings is null if no profile found
 
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*')
         .eq('user_id', user.id);
-      if (projectsError) throw projectsError;
+      
+      if (projectsError) {
+        console.error("Error fetching projects data:", projectsError);
+        throw projectsError;
+      }
       setSavedProjects(projectsData || []);
 
     } catch (error) {
-      console.error("Error fetching user data:", error);
+      console.error("Error fetching user data from Supabase:", error);
+      // Optionally, display an error message to the user
+      // alert("Não foi possível carregar seus dados do Supabase. Por favor, tente novamente.");
     }
   }, []);
 
@@ -843,7 +849,7 @@ const App: React.FC = () => {
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
           onPromptSubmit={(prompt, attachments, aiModel) => {
-            const model = AI_MODELS_UPDATED.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
+            const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
             handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments);
           }}
           onShowPricing={() => setView('pricing')}
@@ -931,7 +937,10 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt, attachments) => handleSendMessage(prompt, selectedModel.provider, selectedModel.id, AIMode.Chat, attachments)}
+          onPromptSubmit={(prompt, attachments, aiModel) => {
+            const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
+            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments);
+          }}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
           onOpenGithubImport={() => setGithubModalOpen(true)}
@@ -990,7 +999,6 @@ const App: React.FC = () => {
         onImport={handleProjectImport}
         githubToken={userSettings?.github_access_token}
         onOpenSettings={() => { setGithubModalOpen(false); handleOpenSettings(); }}
-        userSettings={userSettings}
       />
       <PublishModal
         isOpen={isLocalRunModalOpen}
@@ -1009,7 +1017,7 @@ const App: React.FC = () => {
         isOpen={isGoogleCloudModalOpen && !!session}
         onClose={() => setGoogleCloudModalOpen(false)}
         settings={userSettings || { id: session?.user?.id || '' }}
-        onSave={handleSaveSettings}
+        onSave={(newSettings) => handleSaveSettings({ gcp_project_id: newSettings.gcp_project_id, gcp_credentials: newSettings.gcp_credentials })}
       />
       <FirebaseFirestoreModal
         isOpen={isFirebaseFirestoreModalOpen && !!session}

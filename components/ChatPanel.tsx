@@ -7,6 +7,7 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   onSendMessage: (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[]) => void;
   isProUser: boolean;
+  selectedModel: { id: string; name: string; provider: AIProvider };
   onClose?: () => void;
 }
 
@@ -81,19 +82,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  const availableProviders = isProUser ? Object.values(AIProvider) : [AIProvider.Gemini, AIProvider.OpenRouter];
+  // Make all providers available regardless of pro user status
+  const availableProviders = Object.values(AIProvider);
 
-  // Effect to ensure the selected model is always valid based on user's plan
+  // Effect to ensure the selected model is always valid
   useEffect(() => {
     const currentModel = AI_MODELS.find(m => m.id === selectedModel);
-    if (!currentModel || !availableProviders.includes(currentModel.provider)) {
-      // If current model is invalid (e.g., user is no longer pro), default to the first available model
+    if (!currentModel) {
+      // If current model is invalid, default to the first available model
       const firstAvailableModel = AI_MODELS.find(m => availableProviders.includes(m.provider));
       if (firstAvailableModel) {
         setSelectedModel(firstAvailableModel.id);
       }
     }
-  }, [isProUser, selectedModel, availableProviders]);
+  }, [selectedModel, availableProviders]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -145,7 +147,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
       <div className="p-4 border-b border-var-border-default flex justify-between items-center flex-shrink-0">
         <h2 className="text-lg font-semibold text-var-fg-default">Chat</h2>
         {onClose && (
-            <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+            <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Fechar chat">
                 <CloseIcon />
             </button>
         )}
@@ -193,6 +195,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1.5 text-sm w-full text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
+                title="Selecionar modelo de IA"
               >
                 {availableProviders.map(provider => (
                   <optgroup key={provider} label={provider}>
@@ -206,7 +209,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
               </select>
             </div>
             <div className="flex-shrink-0 flex items-center bg-var-bg-interactive border border-var-border-default rounded-md p-1 text-sm">
-              <label className={`px-3 py-1 rounded-md cursor-pointer transition-colors duration-200 ${selectedMode === AIMode.Chat ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-subtle'}`}>
+              <label className={`px-3 py-1 rounded-md cursor-pointer transition-colors duration-200 ${selectedMode === AIMode.Chat ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-subtle'}`} title="Modo Chat">
                 <input
                   type="radio"
                   value={AIMode.Chat}
@@ -216,7 +219,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                 />
                 Chat
               </label>
-              <label className={`px-3 py-1 rounded-md cursor-pointer transition-colors duration-200 ${selectedMode === AIMode.Agent ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-subtle'}`}>
+              <label className={`px-3 py-1 rounded-md cursor-pointer transition-colors duration-200 ${selectedMode === AIMode.Agent ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-subtle'}`} title="Modo Agente">
                 <input
                   type="radio"
                   value={AIMode.Agent}
@@ -253,6 +256,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
               placeholder="Descreva o que você quer construir ou alterar..."
               className="w-full p-2 pr-10 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-muted focus:outline-none focus:ring-2 focus:ring-var-accent/50 resize-none"
               rows={3}
+              title="Campo de entrada de mensagem"
             />
             <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" accept="image/*,text/*" />
             <button
