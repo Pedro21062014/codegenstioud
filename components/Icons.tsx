@@ -160,6 +160,21 @@ export const CloseIcon = ({ className = "w-5 h-5" }: { className?: string }) => 
   </svg>
 );
 
+export const CodeIcon = () => (
+    <svg {...iconProps} className="w-5 h-5" viewBox="0 0 24 24">
+        <path d="M7 8l-4 4l4 4" />
+        <path d="M17 8l4 4l-4 4" />
+        <path d="M14 4l-4 16" />
+    </svg>
+);
+
+export const SendIcon = () => (
+    <svg {...iconProps} className="w-5 h-5" viewBox="0 0 24 24">
+        <path d="M10 14l11 -11" />
+        <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+    </svg>
+);
+
 export const SparklesIcon = () => (
     <svg {...iconProps} className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
       <path d="M12 3l1.5 4.5h4.5l-3.5 2.5 1.5 4.5-4-3-4 3 1.5-4.5-3.5-2.5h4.5z" />

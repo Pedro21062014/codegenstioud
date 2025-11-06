@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SparklesIcon, AppLogo, GithubIcon, LinkedInIcon, FolderIcon, LogOutIcon } from './Icons';
+import { SparklesIcon, AppLogo, GithubIcon, LinkedInIcon, FolderIcon, LogOutIcon, CodeIcon, SendIcon } from './Icons';
 import type { Session } from '@supabase/supabase-js';
 import { ProjectFile } from '../types';
 
@@ -74,6 +74,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
   const isDeleting = useRef(false);
   const timeoutRef = useRef<number | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<{ id: string; name: string; logo: string } | null>(null);
+
+  const aiModels = [
+    { id: "gemini", name: "Gemini", logo: "/logos/gemini.svg" },
+    { id: "openai", name: "OpenAI", logo: "/logos/openai.svg" },
+    { id: "claude", name: "Claude", logo: "/logos/claude.svg" },
+  ];
+
+  const handleModelSelect = (model: { id: string; name: string; logo: string }) => {
+    setSelectedModel(model);
+    setShowModelDropdown(false);
+  };
 
   useEffect(() => {
     const type = () => {
@@ -255,12 +268,41 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     placeholder={placeholder}
                     className="relative w-full h-28 p-4 bg-var-bg-subtle border border-var-border-default rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-var-accent/50 text-var-fg-default placeholder-var-fg-subtle"
                 />
-                 <button 
+                <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                    <button className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Code">
+                        <CodeIcon />
+                    </button>
+                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple style={{ display: 'none' }} />
+                    <button onClick={() => folderInputRef.current?.click()} className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Upload Files">
+                        +
+                    </button>
+                    <div className="relative">
+                        <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all">
+                            {selectedModel ? <img src={selectedModel.logo} alt={selectedModel.name} className="w-5 h-5 inline-block mr-2" /> : null}
+                            {selectedModel ? selectedModel.name : "modelo"}
+                        </button>
+                        {showModelDropdown && (
+                            <div className="absolute bottom-full left-0 mb-2 w-48 bg-var-bg-interactive border border-var-border-default rounded-lg shadow-lg p-2">
+                                {aiModels.map((model) => (
+                                    <button
+                                        key={model.id}
+                                        onClick={() => handleModelSelect(model)}
+                                        className="flex items-center w-full px-3 py-2 text-sm text-var-fg-default hover:bg-var-bg-subtle rounded-md"
+                                    >
+                                        <img src={model.logo} alt={model.name} className="w-5 h-5 inline-block mr-2" />
+                                        {model.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <button 
                     onClick={() => onPromptSubmit(prompt.trim())}
                     disabled={!prompt.trim()}
-                    className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-var-accent text-var-accent-fg rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-                    <SparklesIcon />
-                    <span>Gerar</span>
+                    className="absolute bottom-4 right-4 flex items-center justify-center w-10 h-10 bg-var-accent text-var-accent-fg rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group">
+                    <SendIcon className="relative z-10" />
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-0 group-hover:animate-spin-slow" style={{ animationDuration: '2s' }}></div>
                 </button>
             </div>
 
@@ -270,8 +312,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     <GithubIcon />
                     <span>GitHub</span>
                 </button>
-                 <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple style={{ display: 'none' }} {...{ webkitdirectory: "true", directory: "true" }} />
-                <button onClick={() => folderInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 bg-var-bg-interactive border border-var-border-default rounded-full hover:bg-opacity-80 transition-all text-var-fg-muted hover:text-var-fg-default">
+                <button onClick={onOpenGithubImport} className="flex items-center gap-2 px-3 py-1.5 bg-var-bg-interactive border border-var-border-default rounded-full hover:bg-opacity-80 transition-all text-var-fg-muted hover:text-var-fg-default">
                     <FolderIcon />
                     <span>Pasta Local</span>
                 </button>
