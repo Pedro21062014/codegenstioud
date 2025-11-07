@@ -14,6 +14,7 @@ interface WelcomeScreenProps {
   onLoginClick: () => void;
   onNewProject: () => void;
   onLogout: () => void;
+  isProUser: boolean;
 }
 
 const getFileLanguage = (fileName: string): string => {
@@ -66,7 +67,7 @@ const examplePrompts = [
     "uma landing page para um app de delivery...",
 ];
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, onShowPricing, onShowProjects, onOpenGithubImport, onFolderImport, session, onLoginClick, onNewProject, onLogout }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, onShowPricing, onShowProjects, onOpenGithubImport, onFolderImport, session, onLoginClick, onNewProject, onLogout, isProUser }) => {
   const [prompt, setPrompt] = useState('');
   const [placeholder, setPlaceholder] = useState('');
   
@@ -76,7 +77,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
   const timeoutRef = useRef<number | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState<string>(AI_MODELS[0].id);
+
+  const allowedNonProModels = [
+    'gemini-2.0-flash',
+    'z-ai/glm-4.5-air:free',
+  ];
+
+  const filteredModels = isProUser
+    ? AI_MODELS
+    : AI_MODELS.filter(model => allowedNonProModels.includes(model.id));
+
+  const [selectedModelId, setSelectedModelId] = useState<string>(filteredModels[0]?.id || '');
+
+  useEffect(() => {
+    if (!filteredModels.some(model => model.id === selectedModelId)) {
+      setSelectedModelId(filteredModels[0]?.id || '');
+    }
+  }, [isProUser, filteredModels, selectedModelId]);
 
   const handleModelSelect = (modelId: string) => {
     setSelectedModelId(modelId);
@@ -261,6 +278,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
+                    title="Digite seu prompt aqui"
                     className="relative w-full h-28 p-4 bg-var-bg-subtle border border-var-border-default rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-var-accent/50 text-var-fg-default placeholder-var-fg-subtle"
                 />
                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
@@ -273,11 +291,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     </button>
                     <div className="relative">
                         <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Selecionar modelo de IA">
-                            {AI_MODELS.find(m => m.id === selectedModelId)?.name || "Modelo"}
+                            {filteredModels.find(m => m.id === selectedModelId)?.name || "Modelo"}
                         </button>
                         {showModelDropdown && (
                             <div className="absolute bottom-full left-0 mb-2 w-48 bg-var-bg-interactive border border-var-border-default rounded-lg shadow-lg p-2">
-                                {AI_MODELS.map((model) => (
+                                {filteredModels.map((model) => (
                                     <button
                                         key={model.id}
                                         onClick={() => handleModelSelect(model.id)}

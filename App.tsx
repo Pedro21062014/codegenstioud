@@ -46,7 +46,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
     </button>
     <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
     <select
-      className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm"
+      className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm relative z-50"
       value={selectedModel.id}
       onChange={(e) => {
         const selected = AI_MODELS.find((m) => m.id === e.target.value);
@@ -858,6 +858,7 @@ const App: React.FC = () => {
           onFolderImport={handleProjectImport}
           onNewProject={handleNewProject}
           onLogout={handleLogout}
+          isProUser={isProUser}
         />;
       case 'pricing':
         return <PricingPage onBack={() => setView(files.length > 0 ? 'editor' : 'welcome')} onNewProject={handleNewProject} />;
@@ -934,7 +935,7 @@ const App: React.FC = () => {
           </div>
         );
       default:
-        return <WelcomeScreen 
+        return <WelcomeScreen
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
           onPromptSubmit={(prompt, attachments, aiModel) => {
@@ -947,6 +948,7 @@ const App: React.FC = () => {
           onFolderImport={handleProjectImport}
           onNewProject={handleNewProject}
           onLogout={handleLogout}
+          isProUser={isProUser}
         />;
     }
   };
