@@ -288,7 +288,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     <button className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Gerar código" aria-label="Gerar código">
                         <CodeIcon />
                     </button>
-                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple style={{ display: 'none' }} title="Selecionar pasta" />
+                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple directory="" webkitdirectory="" style={{ display: 'none' }} title="Selecionar pasta" />
                     <button onClick={() => folderInputRef.current?.click()} className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Carregar arquivos" aria-label="Carregar arquivos">
                         +
                     </button>
