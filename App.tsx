@@ -29,6 +29,7 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
+import geminiImage from './components/models image/gemini.png'; // Import the image
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -76,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
         ))}
       </select>
       <div className="flex items-center gap-2">
-        {showGeminiImage && <img src="components/models image/gemini.png" alt="Gemini" className="w-5 h-5" />}
+        {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5" />}
         <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir chat">
           <ChatIcon />
         </button>

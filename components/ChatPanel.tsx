@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, AIProvider, AIModel, AIMode } from '../types';
 import { AI_MODELS } from '../constants';
 import { SparklesIcon, CloseIcon, AppLogo, PaperclipIcon } from './Icons';
+import geminiImage from '../components/models image/gemini.png'; // Import the image
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -201,7 +202,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                 title="Selecionar modelo de IA"
               >
                 {filteredModels.map(model => (
-                      <option key={model.id} value={model.id} title={model.name}>
+                      <option key={model.id} value={model.id} title={model.name} className="flex items-center gap-2">
+                        {showGeminiImage && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5" />}
                         {model.name}
                       </option>
                     ))}

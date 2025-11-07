@@ -3,6 +3,7 @@ import { SparklesIcon, AppLogo, GithubIcon, LinkedInIcon, FolderIcon, LogOutIcon
 import type { Session } from '@supabase/supabase-js';
 import { ProjectFile, AIProvider, AIModel, AIMode } from '../types';
 import { AI_MODELS } from '../constants';
+import geminiImage from '../components/models image/gemini.png'; // Import the image
 
 interface WelcomeScreenProps {
   onPromptSubmit: (prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string) => void;
@@ -293,7 +294,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     </button>
                     <div className="relative">
                         <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all flex items-center gap-2" title="Selecionar modelo de IA">
-                            {showGeminiImage && <img src="components/models image/gemini.png" alt="Gemini" className="w-5 h-5" />}
+                            {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5" />}
                             {filteredModels.find(m => m.id === selectedModelId)?.name || "Modelo"}
                         </button>
                         {showModelDropdown && (
@@ -305,7 +306,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                         className="flex items-center w-full px-3 py-2 text-sm text-var-fg-default hover:bg-var-bg-subtle rounded-md gap-2"
                                         title={model.name}
                                     >
-                                        {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src="components/models image/gemini.png" alt="Gemini" className="w-5 h-5" />}
+                                        {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5" />}
                                         {model.name}
                                     </button>
                                 ))}
