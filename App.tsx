@@ -54,7 +54,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
   const showGeminiImage = !isProUser && (selectedModel.id === 'gemini-2.0-flash' || selectedModel.id === 'openrouter/google/gemini-pro-1.5');
 
   return (
-    <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
+    <div className="lg:hidden flex justify-between items-center p-2 bg-black border-b border-var-border-default flex-shrink-0">
       <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir barra lateral">
         <MenuIcon />
       </button>
@@ -104,7 +104,7 @@ const InitializingOverlay: React.FC<{ projectName: string; generatingFile: strin
   }, []);
 
   return (
-    <div className="absolute inset-0 bg-var-bg-default/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-var-fg-default animate-fadeIn">
+    <div className="absolute inset-0 bg-black z-50 flex flex-col items-center justify-center text-var-fg-default animate-fadeIn">
       <AppLogo className="w-12 h-12 text-var-accent animate-pulse" style={{ animationDuration: '2s' }} />
       <h2 className="mt-4 text-2xl font-bold">Gerando seu novo projeto...</h2>
       <p className="text-lg text-var-fg-muted">{projectName}</p>
@@ -112,7 +112,7 @@ const InitializingOverlay: React.FC<{ projectName: string; generatingFile: strin
       <div className="mt-8 text-center space-y-4">
           <div>
               <p className="text-sm text-var-fg-subtle">Criando arquivo:</p>
-              <p className="text-base font-mono text-var-fg-default bg-var-bg-subtle px-3 py-1.5 rounded-md inline-block min-w-[220px] text-center transition-all duration-300">
+              <p className="text-base font-mono text-var-fg-default bg-black px-3 py-1.5 rounded-md inline-block min-w-[220px] text-center transition-all duration-300">
                 {generatingFile}
               </p>
           </div>
@@ -913,7 +913,7 @@ const App: React.FC = () => {
               
               {isSidebarOpen && (
                  <div className="absolute top-0 left-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setSidebarOpen(false)}>
-                    <div className="w-[320px] h-full bg-var-bg-subtle shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="w-[320px] h-full bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
                         <Sidebar
                             files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={(file) => {setProject(p => ({...p, activeFile: file})); setSidebarOpen(false);}}
                             onDownload={() => {handleDownload(); setSidebarOpen(false);}} onOpenSettings={() => {handleOpenSettings(); setSidebarOpen(false);}}
@@ -943,7 +943,7 @@ const App: React.FC = () => {
               
               {isChatOpen && (
                  <div className="absolute top-0 right-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setChatOpen(false)}>
-                    <div className="absolute right-0 w-full max-w-sm h-full bg-var-bg-subtle shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="absolute right-0 w-full max-w-sm h-full bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
                        <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} selectedModel={selectedModel} onClose={() => setChatOpen(false)} />
                     </div>
                 </div>
