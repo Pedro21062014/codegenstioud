@@ -80,7 +80,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
 
   const allowedNonProModels = [
     'gemini-2.0-flash',
-    'z-ai/glm-4.5-air:free',
+    'openrouter/google/gemini-pro-1.5',
   ];
 
   const filteredModels = isProUser
@@ -99,6 +99,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
     setSelectedModelId(modelId);
     setShowModelDropdown(false);
   };
+
+  const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
 
   useEffect(() => {
     const type = () => {
@@ -282,15 +284,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     className="relative w-full h-28 p-4 bg-var-bg-subtle border border-var-border-default rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-var-accent/50 text-var-fg-default placeholder-var-fg-subtle"
                 />
                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                    <button className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Code" aria-label="Gerar código">
+                    <button className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Gerar código" aria-label="Gerar código">
                         <CodeIcon />
                     </button>
-                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple style={{ display: 'none' }} />
-                    <button onClick={() => folderInputRef.current?.click()} className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Upload Files" aria-label="Carregar arquivos">
+                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple style={{ display: 'none' }} title="Selecionar pasta" />
+                    <button onClick={() => folderInputRef.current?.click()} className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Carregar arquivos" aria-label="Carregar arquivos">
                         +
                     </button>
                     <div className="relative">
-                        <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Selecionar modelo de IA">
+                        <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all flex items-center gap-2" title="Selecionar modelo de IA">
+                            {showGeminiImage && <img src="components/models image/gemini.png" alt="Gemini" className="w-5 h-5" />}
                             {filteredModels.find(m => m.id === selectedModelId)?.name || "Modelo"}
                         </button>
                         {showModelDropdown && (
@@ -299,8 +302,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                     <button
                                         key={model.id}
                                         onClick={() => handleModelSelect(model.id)}
-                                        className="flex items-center w-full px-3 py-2 text-sm text-var-fg-default hover:bg-var-bg-subtle rounded-md"
+                                        className="flex items-center w-full px-3 py-2 text-sm text-var-fg-default hover:bg-var-bg-subtle rounded-md gap-2"
+                                        title={model.name}
                                     >
+                                        {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src="components/models image/gemini.png" alt="Gemini" className="w-5 h-5" />}
                                         {model.name}
                                     </button>
                                 ))}
@@ -312,7 +317,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                     onClick={() => onPromptSubmit(prompt.trim(), [], selectedModelId)}
                     disabled={!prompt.trim()}
                     className="absolute bottom-4 right-4 flex items-center justify-center w-10 h-10 bg-var-accent text-var-accent-fg rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group"
-                    aria-label="Enviar prompt">
+                    aria-label="Enviar prompt"
+                    title="Enviar prompt"
+                >
                     <SendIcon className="relative z-10" />
                     <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-0 group-hover:animate-spin-slow" style={{ animationDuration: '2s' }}></div>
                 </button>
@@ -320,11 +327,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
 
             <div className="mt-6 flex items-center justify-center gap-4 text-sm">
                 <span className="text-var-fg-muted">ou importe de</span>
-                <button onClick={onOpenGithubImport} className="flex items-center gap-2 px-3 py-1.5 bg-var-bg-interactive border border-var-border-default rounded-full hover:bg-opacity-80 transition-all text-var-fg-muted hover:text-var-fg-default">
+                <button onClick={onOpenGithubImport} className="flex items-center gap-2 px-3 py-1.5 bg-var-bg-interactive border border-var-border-default rounded-full hover:bg-opacity-80 transition-all text-var-fg-muted hover:text-var-fg-default" title="Importar do GitHub">
                     <GithubIcon />
                     <span>GitHub</span>
                 </button>
-                <button onClick={() => folderInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 bg-var-bg-interactive border border-var-border-default rounded-full hover:bg-opacity-80 transition-all text-var-fg-muted hover:text-var-fg-default">
+                <button onClick={() => folderInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 bg-var-bg-interactive border border-var-border-default rounded-full hover:bg-opacity-80 transition-all text-var-fg-muted hover:text-var-fg-default" title="Importar de pasta local">
                     <FolderIcon />
                     <span>Pasta Local</span>
                 </button>

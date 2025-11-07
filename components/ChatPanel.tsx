@@ -76,26 +76,27 @@ const ThinkingIndicator = () => (
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, isProUser, onClose }) => {
   const [input, setInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string>(AI_MODELS[0].id);
+  const [selectedModelId, setSelectedModelId] = useState<string>(AI_MODELS[0].id);
   const [selectedMode, setSelectedMode] = useState<AIMode>(AIMode.Chat);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  // Make all providers available regardless of pro user status
-  const availableProviders = Object.values(AIProvider);
+  const allowedNonProModels = [
+    'gemini-2.0-flash',
+    'openrouter/google/gemini-pro-1.5',
+  ];
+
+  const filteredModels = isProUser
+    ? AI_MODELS
+    : AI_MODELS.filter(model => allowedNonProModels.includes(model.id));
 
   // Effect to ensure the selected model is always valid
   useEffect(() => {
-    const currentModel = AI_MODELS.find(m => m.id === selectedModel);
-    if (!currentModel) {
-      // If current model is invalid, default to the first available model
-      const firstAvailableModel = AI_MODELS.find(m => availableProviders.includes(m.provider));
-      if (firstAvailableModel) {
-        setSelectedModel(firstAvailableModel.id);
-      }
+    if (!filteredModels.some(model => model.id === selectedModelId)) {
+      setSelectedModelId(filteredModels[0]?.id || '');
     }
-  }, [selectedModel, availableProviders]);
+  }, [isProUser, filteredModels, selectedModelId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,7 +117,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const currentModel = AI_MODELS.find(m => m.id === selectedModel);
+    const currentModel = AI_MODELS.find(m => m.id === selectedModelId);
     if ((!input.trim() && attachedFiles.length === 0) || !currentModel) return;
 
     try {
@@ -141,6 +142,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
         console.error("Error processing file attachments:", error);
     }
   };
+  
+  const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
   
   return (
     <div className="bg-var-bg-subtle w-full flex flex-col h-full border-l border-var-border-default">
@@ -192,20 +195,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
           <div className="flex flex-col sm:flex-row gap-2 mb-2">
             <div className="flex-1">
               <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                value={selectedModelId}
+                onChange={(e) => setSelectedModelId(e.target.value)}
                 className="bg-var-bg-interactive border border-var-border-default rounded-md px-2 py-1.5 text-sm w-full text-var-fg-default focus:outline-none focus:ring-2 focus:ring-var-accent/50"
                 title="Selecionar modelo de IA"
               >
-                {availableProviders.map(provider => (
-                  <optgroup key={provider} label={provider}>
-                    {AI_MODELS.filter(m => m.provider === provider).map(model => (
-                      <option key={model.id} value={model.id}>
+                {filteredModels.map(model => (
+                      <option key={model.id} value={model.id} title={model.name}>
                         {model.name}
                       </option>
                     ))}
-                  </optgroup>
-                ))}
               </select>
             </div>
             <div className="flex-shrink-0 flex items-center bg-var-bg-interactive border border-var-border-default rounded-md p-1 text-sm">
@@ -216,6 +215,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                   checked={selectedMode === AIMode.Chat}
                   onChange={() => setSelectedMode(AIMode.Chat)}
                   className="hidden"
+                  aria-label="Modo Chat"
                 />
                 Chat
               </label>
@@ -226,6 +226,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                   checked={selectedMode === AIMode.Agent}
                   onChange={() => setSelectedMode(AIMode.Agent)}
                   className="hidden"
+                  aria-label="Modo Agente"
                 />
                 Agent
               </label>
@@ -236,7 +237,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
               {attachedFiles.map((file, index) => (
                 <div key={index} className="flex items-center justify-between text-xs text-var-fg-muted">
                   <span className="truncate">{file.name}</span>
-                  <button type="button" onClick={() => removeFile(file)} className="p-1 rounded-full hover:bg-var-bg-subtle">
+                  <button type="button" onClick={() => removeFile(file)} className="p-1 rounded-full hover:bg-var-bg-subtle" title={`Remover ${file.name}`}>
                     <CloseIcon className="w-3 h-3" />
                   </button>
                 </div>
@@ -258,17 +259,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
               rows={3}
               title="Campo de entrada de mensagem"
             />
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" accept="image/*,text/*" />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple className="hidden" accept="image/*,text/*" title="Anexar arquivos" />
             <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="absolute bottom-2.5 right-2.5 p-1 text-var-fg-muted hover:text-var-fg-default rounded-md hover:bg-var-bg-subtle"
                 aria-label="Anexar arquivo"
+                title="Anexar arquivo"
             >
                 <PaperclipIcon />
             </button>
           </div>
-          <button type="submit" className="w-full mt-2 bg-var-accent hover:opacity-90 text-var-accent-fg font-bold py-2 px-4 rounded-md transition duration-200 flex items-center justify-center space-x-2 disabled:opacity-50" disabled={(!input.trim() && attachedFiles.length === 0) || !selectedModel}>
+          <button type="submit" className="w-full mt-2 bg-var-accent hover:opacity-90 text-var-accent-fg font-bold py-2 px-4 rounded-md transition duration-200 flex items-center justify-center space-x-2 disabled:opacity-50" disabled={(!input.trim() && attachedFiles.length === 0) || !selectedModelId} title="Gerar">
             <SparklesIcon />
             <span>Gerar</span>
           </button>

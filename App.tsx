@@ -37,38 +37,53 @@ interface HeaderProps {
   session: Session | null;
   selectedModel: { id: string; name: string; provider: AIProvider };
   onModelChange: (model: { id: string; name: string; provider: AIProvider }) => void;
+  isProUser: boolean; // Add isProUser to HeaderProps
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectName, session, selectedModel, onModelChange }) => (
-  <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
-    <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir barra lateral">
-      <MenuIcon />
-    </button>
-    <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
-    <select
-      className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm relative z-50"
-      value={selectedModel.id}
-      onChange={(e) => {
-        const selected = AI_MODELS.find((m) => m.id === e.target.value);
-        if (selected) {
-          onModelChange(selected);
-        }
-      }}
-      title="Selecionar modelo de IA"
-    >
-      {AI_MODELS.map((model) => (
-        <option key={model.id} value={model.id}>
-          {model.name}
-        </option>
-      ))}
-    </select>
-    <div className="flex items-center gap-2">
-      <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir chat">
-        <ChatIcon />
+const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectName, session, selectedModel, onModelChange, isProUser }) => {
+  const allowedNonProModels = [
+    'gemini-2.0-flash',
+    'openrouter/google/gemini-pro-1.5',
+  ];
+
+  const filteredModels = isProUser
+    ? AI_MODELS
+    : AI_MODELS.filter(model => allowedNonProModels.includes(model.id));
+
+  const showGeminiImage = !isProUser && (selectedModel.id === 'gemini-2.0-flash' || selectedModel.id === 'openrouter/google/gemini-pro-1.5');
+
+  return (
+    <div className="lg:hidden flex justify-between items-center p-2 bg-var-bg-subtle border-b border-var-border-default flex-shrink-0">
+      <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir barra lateral">
+        <MenuIcon />
       </button>
+      <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
+      <select
+        className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm relative z-50"
+        value={selectedModel.id}
+        onChange={(e) => {
+          const selected = AI_MODELS.find((m) => m.id === e.target.value);
+          if (selected) {
+            onModelChange(selected);
+          }
+        }}
+        title="Selecionar modelo de IA"
+      >
+        {filteredModels.map((model) => (
+          <option key={model.id} value={model.id}>
+            {model.name}
+          </option>
+        ))}
+      </select>
+      <div className="flex items-center gap-2">
+        {showGeminiImage && <img src="components/models image/gemini.png" alt="Gemini" className="w-5 h-5" />}
+        <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir chat">
+          <ChatIcon />
+        </button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const InitializingOverlay: React.FC<{ projectName: string; generatingFile: string }> = ({ projectName, generatingFile }) => {
   const [timeLeft, setTimeLeft] = useState(45);
@@ -880,6 +895,7 @@ const App: React.FC = () => {
               session={session}
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
+              isProUser={isProUser}
             />
             <div className="flex flex-1 overflow-hidden relative">
               {isInitializing && <InitializingOverlay projectName={projectName} generatingFile={generatingFile} />}
