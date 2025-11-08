@@ -11,7 +11,7 @@ import { ProjectsPage } from './components/ProjectsPage';
 import { GithubImportModal } from './components/GithubImportModal';
 import { PublishModal } from './components/PublishModal';
 import { AuthModal } from './components/AuthModal';
-import { ImageStudioModal } from './components/ImageStudioModal';
+
 import { SupabaseAdminModal } from './components/SupabaseAdminModal';
 import { StripeModal } from './components/StripeModal';
 import { NeonModal } from './components/NeonModal';
@@ -186,7 +186,7 @@ const App: React.FC = () => {
   const [isGithubModalOpen, setGithubModalOpen] = useState(false);
   const [isLocalRunModalOpen, setLocalRunModalOpen] = useState(false);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
-  const [isImageStudioOpen, setImageStudioOpen] = useState(false);
+
   const [isSupabaseAdminModalOpen, setSupabaseAdminModalOpen] = useState(false);
   const [isStripeModalOpen, setStripeModalOpen] = useState(false);
   const [isNeonModalOpen, setNeonModalOpen] = useState(false);
@@ -952,16 +952,7 @@ const App: React.FC = () => {
     setView('editor');
   }, [setProject]);
 
-  const handleSaveImageToProject = useCallback((base64Data: string, fileName: string) => {
-    const newFile: ProjectFile = { name: `assets/${fileName}`, language: 'image', content: base64Data };
-    setProject(p => {
-        const existingFile = p.files.find(f => f.name === newFile.name);
-        const newFiles = existingFile ? p.files.map(f => f.name === newFile.name ? newFile : f) : [...p.files, newFile];
-        return { ...p, files: newFiles };
-    });
-    alert(`Imagem "${newFile.name}" salva no projeto!`);
-    setImageStudioOpen(false);
-  }, [setProject]);
+
 
   const handleDeleteFile = useCallback((fileNameToDelete: string) => {
     setProject(p => {
@@ -1057,7 +1048,7 @@ const App: React.FC = () => {
                 <Sidebar
                   files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={name => setProject(p => ({...p, activeFile: name}))} onDownload={handleDownload}
                   onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)} onOpenSupabaseAdmin={() => setSupabaseAdminModalOpen(true)}
-                  onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject} onOpenImageStudio={() => setImageStudioOpen(true)}
+                  onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                   onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)} onOpenFirebaseFirestoreModal={() => setFirebaseFirestoreModalOpen(true)}
                   session={session} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
@@ -1072,7 +1063,7 @@ const App: React.FC = () => {
                             onDownload={() => {handleDownload(); setSidebarOpen(false);}} onOpenSettings={() => {handleOpenSettings(); setSidebarOpen(false);}}
                             onOpenGithubImport={() => {setGithubModalOpen(true); setSidebarOpen(false);}} onOpenSupabaseAdmin={() => {setSupabaseAdminModalOpen(true); setSidebarOpen(false);}}
                             onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
-                            onNewProject={handleNewProject} onOpenImageStudio={() => { setImageStudioOpen(true); setSidebarOpen(false); }} onClose={() => setSidebarOpen(false)}
+                            onNewProject={handleNewProject} onClose={() => setSidebarOpen(false)}
                             onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                             onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
                             session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
@@ -1179,13 +1170,7 @@ const App: React.FC = () => {
         onDownload={handleDownload}
         projectName={projectName}
       />
-      <ImageStudioModal
-        isOpen={isImageStudioOpen}
-        onClose={() => setImageStudioOpen(false)}
-        onSaveImage={handleSaveImageToProject}
-        apiKey={effectiveGeminiApiKey}
-        onOpenApiKeyModal={() => { setImageStudioOpen(false); setApiKeyModalOpen(true); }}
-       />
+
       <GoogleCloudModal
         isOpen={isGoogleCloudModalOpen && !!session}
         onClose={() => setGoogleCloudModalOpen(false)}

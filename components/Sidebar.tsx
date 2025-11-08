@@ -19,7 +19,6 @@ interface SidebarProps {
   onNewProject: () => void;
   onSaveProject: () => void;
   onOpenProjects: () => void;
-  onOpenImageStudio: () => void;
   onRenameFile: (oldName: string, newName: string) => void;
   onDeleteFile: (fileName: string) => void;
   onOpenStripeModal: () => void;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CloseIcon, SupabaseIcon } from './Icons';
+import { CloseIcon } from './Icons';
 import { UserSettings } from '../types';
+import supabaseLogo from './models image/supabase.png';
 
 interface SupabaseAdminModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export const SupabaseAdminModal: React.FC<SupabaseAdminModalProps> = ({ isOpen, 
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-var-fg-default flex items-center gap-2">
-            <SupabaseIcon /> Gerenciar Integração Supabase
+            <img src={supabaseLogo} alt="Supabase" className="w-6 h-6" /> Gerenciar Integração Supabase
           </h2>
           <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
             <CloseIcon />

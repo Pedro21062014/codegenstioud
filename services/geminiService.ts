@@ -282,27 +282,3 @@ export const generateProjectName = async (
     return "NovoProjeto";
   }
 };
-
-export const generateImagesWithImagen = async (
-  prompt: string,
-  apiKey: string,
-  numberOfImages: number,
-  aspectRatio: string
-): Promise<string[]> => {
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt,
-      config: {
-        numberOfImages,
-        outputMimeType: 'image/png',
-        aspectRatio: aspectRatio as any,
-      },
-    });
-    return response.generatedImages.map(img => img.image.imageBytes);
-  } catch (error) {
-    console.error("Error calling Imagen API:", error);
-    throw error;
-  }
-};
