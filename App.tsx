@@ -386,6 +386,34 @@ const App: React.FC = () => {
         throw error;
       }
     };
+
+    (window as any).testLogin = async (email: string, password: string) => {
+      console.log('🧪 TESTE: Iniciando login manual...');
+      console.log('🧪 TESTE: Email:', email);
+      const loginStart = Date.now();
+      try {
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        const loginEnd = Date.now();
+        console.log('🧪 TESTE: Duração do login:', loginEnd - loginStart, 'ms');
+        console.log('🧪 TESTE: Resultado do login:', result);
+        return result;
+      } catch (error) {
+        console.error('🧪 TESTE: Erro no login:', error);
+        throw error;
+      }
+    };
+
+    (window as any).checkSession = async () => {
+      console.log('🧪 TESTE: Verificando sessão atual...');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('🧪 TESTE: Sessão atual:', session);
+        return session;
+      } catch (error) {
+        console.error('🧪 TESTE: Erro ao verificar sessão:', error);
+        throw error;
+      }
+    };
   }
 
 

@@ -17,34 +17,70 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔐 Iniciando processo de autenticação...');
+    console.log('📍 Tipo:', isLoginView ? 'Login' : 'Cadastro');
+    console.log('📍 Email:', email);
+    console.log('📍 Timestamp:', new Date().toISOString());
+    
     setLoading(true);
     setError(null);
     setMessage(null);
     
     try {
       if (isLoginView) {
+        console.log('⏳ Tentando fazer login...');
+        const loginStart = Date.now();
+        console.log('⏰ Início do login:', loginStart);
+        
         const { error } = await supabase.auth.signInWithPassword({ email, password });
+        
+        const loginEnd = Date.now();
+        console.log('⏰ Fim do login:', loginEnd);
+        console.log('⏱️ Duração do login:', loginEnd - loginStart, 'ms');
+        console.log('📥 Resposta do signInWithPassword:', { error });
+        
         if (error) throw error;
+        
+        console.log('✅ Login realizado com sucesso!');
         onClose();
       } else {
+        console.log('⏳ Tentando fazer cadastro...');
+        const signupStart = Date.now();
+        
         const { error } = await supabase.auth.signUp({ email, password });
+        
+        const signupEnd = Date.now();
+        console.log('⏱️ Duração do cadastro:', signupEnd - signupStart, 'ms');
+        console.log('📥 Resposta do signUp:', { error });
+        
         if (error) throw error;
         setMessage('Verifique seu e-mail para o link de confirmação!');
       }
     } catch (err: any) {
+      console.error('❌ Erro na autenticação:', err);
       setError(err.error_description || err.message);
     } finally {
       setLoading(false);
+      console.log('🏁 Processo de autenticação finalizado');
     }
   };
   
   const handleGoogleLogin = async () => {
+    console.log('🔍 Iniciando login com Google...');
     setLoading(true);
     setError(null);
+    
+    const googleStart = Date.now();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
     });
+    const googleEnd = Date.now();
+    
+    console.log('⏱️ Duração do login Google:', googleEnd - googleStart, 'ms');
+    console.log('📥 Resposta do signInWithOAuth:', { error });
+    
     if (error) {
+      console.error('❌ Erro no login com Google:', error);
       setError(error.message);
       setLoading(false);
     }
@@ -88,7 +124,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 />
             </div>
             <div>
-                 <label htmlFor="password"className="block text-sm font-medium text-var-fg-muted mb-1">Senha</label>
+                 <label htmlFor="password" className="block text-sm font-medium text-var-fg-muted mb-1">Senha</label>
                 <input
                     id="password"
                     type="password"

@@ -156,6 +156,46 @@
         25% { transform: rotate(-3deg); }
         75% { transform: rotate(3deg); }
       }
+      @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes spin-reverse-slow {
+        from { transform: rotate(360deg); }
+        to { transform: rotate(0deg); }
+      }
+      @keyframes orbit-light {
+        0% {
+          transform: rotate(0deg) translateX(50%);
+          opacity: 0;
+        }
+        10% {
+          opacity: 1;
+        }
+        90% {
+          opacity: 1;
+        }
+        100% {
+          transform: rotate(360deg) translateX(50%);
+          opacity: 0;
+        }
+      }
+      @keyframes glow-trail {
+        0%, 100% {
+          box-shadow: 
+            0 0 20px rgba(59, 130, 246, 0.8),
+            0 0 40px rgba(59, 130, 246, 0.6),
+            0 0 60px rgba(59, 130, 246, 0.4),
+            0 0 80px rgba(59, 130, 246, 0.2);
+        }
+        50% {
+          box-shadow: 
+            0 0 30px rgba(59, 130, 246, 1),
+            0 0 60px rgba(59, 130, 246, 0.8),
+            0 0 90px rgba(59, 130, 246, 0.6),
+            0 0 120px rgba(59, 130, 246, 0.4);
+        }
+      }
 
       /* Animation classes */
       .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
@@ -170,6 +210,10 @@
       .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
       .animate-float { animation: float 3s ease-in-out infinite; }
       .animate-wiggle { animation: wiggle 1s ease-in-out infinite; }
+      .animate-spin-slow { animation: spin-slow 8s linear infinite; }
+      .animate-spin-reverse-slow { animation: spin-reverse-slow 6s linear infinite; }
+      .animate-orbit-light { animation: orbit-light 3s linear infinite; }
+      .animate-glow-trail { animation: glow-trail 2s ease-in-out infinite; }
 
       /* Hover effects */
       .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
