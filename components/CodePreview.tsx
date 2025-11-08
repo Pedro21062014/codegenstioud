@@ -182,16 +182,31 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
                 }
             }
 
-            const entryPath = finalFileUrls.has(initialPath) ? initialPath : '/';
-            const entryUrl = finalFileUrls.get(entryPath);
-
+            // Try to find the requested path first
+            let entryPath = initialPath;
+            let entryUrl = finalFileUrls.get(entryPath);
+            
+            // If not found, try to find any HTML file
             if (!entryUrl) {
-                const message = `
-                <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Página não encontrada</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">O caminho <code>${initialPath}</code> não corresponde a nenhum arquivo HTML no projeto.</p></div></body></html>
-                `;
-                const blob = new Blob([message], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                return { src: url, urls: new Map(), urlsToRevoke: [url] };
+                // Look for index.html first
+                if (finalFileUrls.has('/index.html')) {
+                    entryPath = '/index.html';
+                    entryUrl = finalFileUrls.get('/index.html');
+                } 
+                // If no index.html, try any other HTML file
+                else if (htmlFiles.length > 0) {
+                    entryPath = `/${htmlFiles[0].name}`;
+                    entryUrl = finalFileUrls.get(entryPath);
+                }
+                // If no HTML files at all, show error
+                else {
+                    const message = `
+                    <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Nenhum arquivo HTML encontrado</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">Não há nenhum arquivo HTML no projeto para visualizar. Adicione um arquivo <code>index.html</code> ou outro arquivo HTML para começar.</p></div></body></html>
+                    `;
+                    const blob = new Blob([message], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    return { src: url, urls: new Map(), urlsToRevoke: [url] };
+                }
             }
 
             return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
@@ -278,6 +293,8 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
             readOnly
             value={`http://localhost:3000${initialPath}`}
             className="w-full px-2 py-1 text-sm bg-var-bg-input border border-var-border-input rounded"
+            title="URL de visualização local"
+            aria-label="URL de visualização local"
           />
         </div>
       </div>

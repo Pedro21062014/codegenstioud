@@ -378,9 +378,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             Gerenciar
                         </button>
                     </div>
-                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
+                    <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <img src={neonImage} alt="Neon" className="w-6 h-6" />
+                            <img src={neonImage} alt="Neon" className="w-6 h-6 dark:invert-0 light:invert-1" />
                             <h3 className="font-semibold text-var-fg-default">Neon</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte um banco de dados PostgreSQL serverless.</p>
@@ -408,7 +408,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <img src={firebaseImage} alt="Firebase Firestore" className="w-6 h-6" />
+                            <img src={firebaseImage} alt="Firebase Firestore" className="w-6 h-6 dark:invert-0 light:invert-1" />
                             <h3 className="font-semibold text-var-fg-default">Firebase Firestore</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Firebase para operações de banco de dados.</p>
@@ -422,7 +422,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <img src={cloudImage} alt="Google Cloud" className="w-6 h-6" />
+                            <img src={cloudImage} alt="Google Cloud" className="w-6 h-6 dark:invert-0 light:invert-1" />
                             <h3 className="font-semibold text-var-fg-default">Google Cloud</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Google Cloud para serviços backend poderosos.</p>

@@ -19,7 +19,7 @@ import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType, GenerationMode } from './types';
-import { downloadProjectAsZip } from './services/projectService';
+import { downloadProjectAsZip, getProjectSize, formatFileSize } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
@@ -80,7 +80,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
         ))}
       </select>
       <div className="flex items-center gap-2">
-        {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5" />}
+        {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
         <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir chat">
           <ChatIcon />
         </button>
@@ -172,6 +172,7 @@ const initialProjectState: ProjectState = {
 const App: React.FC = () => {
   const [project, setProject] = useLocalStorage<ProjectState>('codegen-studio-project', initialProjectState);
   const { files, activeFile, chatMessages, projectName, envVars, currentProjectId } = project;
+  const [projectSize, setProjectSize] = useState<number>(0);
   
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects'>();
@@ -194,7 +195,7 @@ const App: React.FC = () => {
   
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
-  const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
+  const [theme, setTheme] = useLocalStorage<Theme>('theme', 'light');
   const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType, generationMode: GenerationMode } | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
@@ -1016,6 +1017,15 @@ const App: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Calculate project size whenever files change
+  useEffect(() => {
+    const calculateProjectSize = async () => {
+      const size = await getProjectSize(files);
+      setProjectSize(size);
+    };
+    calculateProjectSize();
+  }, [files]);
 
 
 

@@ -17,6 +17,26 @@ export const createProjectZip = async (files: ProjectFile[]): Promise<Blob> => {
 };
 
 
+export const getProjectSize = async (files: ProjectFile[]): Promise<number> => {
+  try {
+    const zipBlob = await createProjectZip(files);
+    return zipBlob.size;
+  } catch (error) {
+    console.error("Error calculating project size:", error);
+    return 0;
+  }
+};
+
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 export const downloadProjectAsZip = async (files: ProjectFile[], projectName: string = 'ai-codegen-project') => {
   try {
     const zipBlob = await createProjectZip(files);
