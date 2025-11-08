@@ -332,19 +332,61 @@ const App: React.FC = () => {
   }, [project, canManipulateHistory, setProject]);
 
   const handleLogout = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      alert(`Erro ao tentar sair: ${error.message}`);
-      return;
+    console.log('🚪 Iniciando processo de logout...');
+    console.log('📍 Verificando sessão atual:', session ? 'Usuário logado' : 'Usuário não logado');
+    console.log('📍 Verificando função supabase.auth.signOut:', typeof supabase.auth.signOut);
+    console.log('📍 Versão do Supabase:', supabase.auth ? 'auth disponível' : 'auth não disponível');
+    
+    try {
+      console.log('⏳ Chamando supabase.auth.signOut()...');
+      const { error } = await supabase.auth.signOut();
+      console.log('📥 Resposta do signOut:', { error });
+      
+      if (error) {
+        console.error('❌ Erro ao fazer logout:', error);
+        alert(`Erro ao tentar sair: ${error.message}`);
+        return;
+      }
+      
+      console.log('✅ Logout realizado com sucesso!');
+      console.log('🧹 Limpando estado do projeto...');
+      setProject(initialProjectState);
+      console.log('🔄 Redirecionando para tela de boas-vindas...');
+      setView('welcome');
+      
+      console.log('📍 canManipulateHistory:', canManipulateHistory);
+      if (canManipulateHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('projectId');
+        console.log('🔗 URL antes de atualizar:', window.location.href);
+        console.log('🔗 URL após limpar params:', url.href);
+        window.history.pushState({ path: url.href }, '', url.href);
+        console.log('🔗 URL atualizada:', url.href);
+      } else {
+        console.log('⚠️ cannot manipulate history - protocolo não é http/https');
+      }
+      
+      console.log('🎉 Processo de logout concluído!');
+    } catch (err) {
+      console.error('💥 Erro inesperado durante logout:', err);
+      alert(`Erro inesperado ao fazer logout: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
-    setProject(initialProjectState);
-    setView('welcome');
-    if (canManipulateHistory) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('projectId');
-      window.history.pushState({ path: url.href }, '', url.href);
-    }
-  }, [setProject, setView, canManipulateHistory]);
+  }, [setProject, setView, canManipulateHistory, session]);
+
+  // Adicionar função de teste global para debug
+  if (typeof window !== 'undefined') {
+    (window as any).testLogout = async () => {
+      console.log('🧪 TESTE: Iniciando logout manual...');
+      try {
+        const result = await supabase.auth.signOut();
+        console.log('🧪 TESTE: Resultado do signOut:', result);
+        return result;
+      } catch (error) {
+        console.error('🧪 TESTE: Erro no signOut:', error);
+        throw error;
+      }
+    };
+  }
 
 
   const handleLoadProject = useCallback((projectId: number, confirmLoad: boolean = true) => {
@@ -417,7 +459,10 @@ const App: React.FC = () => {
   }, [setIsProUser, canManipulateHistory]);
 
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
+    console.log('handleSaveSettings chamado com:', newSettings);
+    
     if (!session?.user) {
+      console.error('Usuário não está logado');
       alert("Você precisa estar logado para salvar configurações.");
       return;
     }
@@ -429,12 +474,22 @@ const App: React.FC = () => {
         updated_at: new Date().toISOString(),
       };
 
-      console.log('Salvando configurações:', Object.keys(newSettings));
+      console.log('Dados que serão salvos:', {
+        userId: session.user.id,
+        campos: Object.keys(newSettings),
+        dados: settingsData
+      });
 
       const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
       
       if (error) {
-        console.error("Supabase save settings error:", error);
+        console.error("Erro completo do Supabase:", {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         
         // Tratamento específico para erros comuns
         if (error.code === '42501') {
@@ -443,12 +498,34 @@ const App: React.FC = () => {
           alert("Perfil não encontrado. Tente fazer login novamente.");
         } else if (error.message.includes('column') && error.message.includes('does not exist')) {
           alert("Erro de schema: Execute o script SQL fornecido no painel do Supabase.");
+        } else if (error.code === '23505') {
+          alert("Erro de chave única: Já existe um perfil para este usuário.");
         } else {
-          alert(`Erro ao salvar configurações: ${error.message}`);
+          alert(`Erro ao salvar configurações (${error.code}): ${error.message}`);
         }
       } else {
         console.log('Configurações salvas com sucesso:', data);
-        setUserSettings(prev => ({ ...prev, ...data }));
+        console.log('Verificação - campos salvos no banco:', {
+          supabase_project_url: data.supabase_project_url ? '✓' : '✗',
+          supabase_anon_key: data.supabase_anon_key ? '✓' : '✗',
+          supabase_service_key: data.supabase_service_key ? '✓' : '✗',
+          gcp_project_id: data.gcp_project_id ? '✓' : '✗',
+          gcp_credentials: data.gcp_credentials ? '✓' : '✗',
+          firebase_project_id: data.firebase_project_id ? '✓' : '✗',
+          firebase_service_account_key: data.firebase_service_account_key ? '✓' : '✗'
+        });
+        
+        // Atualizar o estado local imediatamente
+        setUserSettings(prev => {
+          const updated = { ...prev, ...data };
+          console.log('Estado userSettings atualizado:', updated);
+          console.log('Verificação final - userSettings contém:', {
+            supabase_project_url: updated.supabase_project_url ? '✓' : '✗',
+            supabase_anon_key: updated.supabase_anon_key ? '✓' : '✗',
+            supabase_service_key: updated.supabase_service_key ? '✓' : '✗'
+          });
+          return updated;
+        });
         
         // Feedback visual de sucesso
         const successMessage = Object.keys(newSettings).length === 1 
@@ -462,9 +539,9 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Erro inesperado ao salvar configurações:", err);
-      alert("Erro inesperado ao salvar configurações. Tente novamente.");
+      alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}. Tente novamente.`);
     }
-  }, [session]);
+  }, [session, setUserSettings]);
 
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
     if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
