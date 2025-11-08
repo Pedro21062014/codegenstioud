@@ -166,7 +166,37 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
                 });
                 
                 const envContent = `window.process = { env: ${JSON.stringify(envVars)} };`;
-                const scriptContent = `\n                    <script>document.documentElement.className = '${theme}';</script>\n                    <script type="importmap">${JSON.stringify(importMap)}</script>\n                    <script type="module">import '/${jsFiles.find(f => f.name.includes('main') || f.name.includes('index'))?.name}';</script>\n                `;
+                const navigationScript = `
+                    <script>
+                        (function() {
+                            const originalHref = window.location.href;
+                            let currentHref = originalHref;
+
+                            Object.defineProperty(window.location, 'href', {
+                                get: function() { return currentHref; },
+                                set: function(value) {
+                                    currentHref = value;
+                                    const url = new URL(value, originalHref);
+                                    if (url.origin === window.location.origin) {
+                                        const path = url.pathname;
+                                        window.parent.postMessage({ type: 'navigate', path: path }, '*');
+                                    } else {
+                                        window.location.replace(value);
+                                    }
+                                }
+                            });
+
+                            window.location.assign = function(url) {
+                                window.location.href = url;
+                            };
+
+                            window.location.replace = function(url) {
+                                window.location.href = url;
+                            };
+                        })();
+                    </script>
+                `;
+                const scriptContent = `\n                    <script>document.documentElement.className = '${theme}';</script>\n                    <script type="importmap">${JSON.stringify(importMap)}</script>\n                    ${navigationScript}\n                    <script type="module">import '/${jsFiles.find(f => f.name.includes('main') || f.name.includes('index'))?.name}';</script>\n                `;
                 content = content.replace('</head>', `${scriptContent}</head>`);
                 htmlContents[htmlFile.name] = content;
             }
@@ -246,6 +276,15 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
     const iframe = iframeRef.current;
     if (!iframe || !iframeSrc) return;
 
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'navigate') {
+        const path = event.data.path;
+        if (fileUrls.has(path)) {
+          onNavigate(path);
+        }
+      }
+    };
+
     const handleLoad = () => {
       try {
         const iframeWindow = iframe.contentWindow;
@@ -267,19 +306,56 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
               }
             }
           }
+
+          // Handle button clicks that might navigate
+          const button = target.closest('button');
+          if (button) {
+            const onclick = button.getAttribute('onclick');
+            if (onclick) {
+              // Check for common navigation patterns in onclick
+              const locationMatch = onclick.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/);
+              if (locationMatch) {
+                const path = locationMatch[1];
+                if (fileUrls.has(path) || fileUrls.has('/' + path)) {
+                  event.preventDefault();
+                  onNavigate(path.startsWith('/') ? path : '/' + path);
+                }
+              }
+            }
+          }
+        };
+
+        const handleSubmit = (event: Event) => {
+          const form = event.target as HTMLFormElement;
+          if (form && form.action) {
+            const url = new URL(form.action, iframeSrc);
+            const currentOrigin = new URL(iframeSrc!).origin;
+
+            if (url.origin === currentOrigin) {
+              const path = url.pathname;
+              if (fileUrls.has(path)) {
+                event.preventDefault();
+                onNavigate(path);
+              }
+            }
+          }
         };
 
         iframeWindow.document.addEventListener('click', handleClick);
+        iframeWindow.document.addEventListener('submit', handleSubmit);
         return () => {
           iframeWindow.document.removeEventListener('click', handleClick);
+          iframeWindow.document.removeEventListener('submit', handleSubmit);
         };
       } catch (error) {
         console.warn("Could not attach click listener to iframe (likely due to cross-origin restrictions or iframe not fully loaded):", error);
       }
     };
 
+    window.addEventListener('message', handleMessage);
     iframe.addEventListener('load', handleLoad);
     return () => {
+      window.removeEventListener('message', handleMessage);
       iframe.removeEventListener('load', handleLoad);
     };
   }, [iframeSrc, fileUrls, onNavigate]);

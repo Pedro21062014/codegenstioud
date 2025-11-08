@@ -22,6 +22,7 @@ import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject
 import { downloadProjectAsZip, getProjectSize, formatFileSize } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
+import { clearExpiredCache } from './services/geminiCache';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
 import { generateCodeStreamWithDeepSeek } from './services/deepseekService';
 import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
@@ -237,6 +238,11 @@ const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.className = theme;
   }, [theme]);
+
+  // Clean up expired cache entries on app initialization
+  useEffect(() => {
+    clearExpiredCache();
+  }, []);
 
   // --- Data Fetching and Auth ---
   const fetchUserData = useCallback(async (user: User) => {
@@ -687,6 +693,7 @@ const App: React.FC = () => {
 
     let result = null;
     let lastError: Error | null = null;
+    let responseFromCache = false;
 
     for (let i = 0; i < MAX_RETRIES; i++) {
       try {
@@ -694,7 +701,9 @@ const App: React.FC = () => {
 
         switch (provider) {
           case AIProvider.Gemini:
-            fullResponse = await generateCodeStreamWithGemini(currentPrompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, mode, generationMode, attachments);
+            const geminiResult = await generateCodeStreamWithGemini(currentPrompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, mode, generationMode, attachments);
+            fullResponse = geminiResult.response;
+            responseFromCache = geminiResult.fromCache;
             break;
           case AIProvider.OpenAI:
             fullResponse = await generateCodeStreamWithOpenAI(currentPrompt, project.files, onChunk, model); // Use currentPrompt
@@ -788,6 +797,7 @@ const App: React.FC = () => {
               lastMessage.content = result.message || 'Geração concluída.';
               lastMessage.summary = result.summary;
               lastMessage.isThinking = false;
+              lastMessage.fromCache = responseFromCache;
               return { ...p, chatMessages: newMessages };
           }
           return p;

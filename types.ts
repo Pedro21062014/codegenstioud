@@ -40,6 +40,7 @@ export interface ChatMessage {
   content: string;
   summary?: string;
   isThinking?: boolean;
+  fromCache?: boolean;
 }
 
 // UserSettings agora reflete a estrutura da tabela 'profiles' do Supabase
