@@ -959,6 +959,7 @@ const App: React.FC = () => {
                   onFileSelect={name => setProject(p => ({...p, activeFile: name}))} onFileDelete={handleDeleteFile} onRunLocally={handleRunLocally}
                   codeError={codeError} onFixCode={handleFixCode} onClearError={() => setCodeError(null)} onError={setCodeError} envVars={envVars}
                   initialPath={activeFile ? `/${activeFile}` : '/index.html'}
+                  onNavigate={(path) => setProject(p => ({ ...p, activeFile: path.startsWith('/') ? path.substring(1) : path }))}
                 />
               </main>
               

@@ -60,6 +60,7 @@ interface EditorViewProps {
   onClearError: () => void;
   onError: (errorMessage: string) => void;
   envVars: Record<string, string>;
+  initialPath: string; // Add initialPath prop
 }
 
 const EditorHeader: React.FC<{ projectName: string; onRunLocally: () => void; theme: Theme; onThemeChange: (theme: Theme) => void }> = ({ projectName, onRunLocally, theme, onThemeChange }) => (
@@ -357,7 +358,7 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
 
         {viewMode === 'preview' && (
           <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh}>
-            <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} />
+            <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} onNavigate={setPreviewUrl} />
           </BrowserFrame>
         )}
 

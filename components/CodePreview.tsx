@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ProjectFile, Theme } from '../types';
 
 declare global {
@@ -68,11 +68,13 @@ interface CodePreviewProps {
     theme: Theme;
     envVars: Record<string, string>;
     initialPath: string;
+    onNavigate: (path: string) => void; // New prop for internal navigation
 }
 
-export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme, envVars, initialPath }) => {
+export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme, envVars, initialPath, onNavigate }) => {
   const [iframeSrc, setIframeSrc] = useState<string | undefined>(undefined);
   const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
+  const iframeRef = useRef<HTMLIFrameElement>(null); // Ref for the iframe
 
   useEffect(() => {
     let urlsToRevoke: string[] = [];
@@ -216,14 +218,56 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
     return () => {
       urlsToRevoke.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [files, onError, theme, envVars]);
+  }, [files, onError, theme, envVars, onNavigate]);
 
- useEffect(() => {
+  useEffect(() => {
     const newSrc = fileUrls.get(initialPath) || fileUrls.get('/');
     if (newSrc && newSrc !== iframeSrc) {
         setIframeSrc(newSrc);
     }
- }, [initialPath, fileUrls]);
+  }, [initialPath, fileUrls, iframeSrc]);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !iframeSrc) return;
+
+    const handleLoad = () => {
+      try {
+        const iframeWindow = iframe.contentWindow;
+        if (!iframeWindow) return;
+
+        const handleClick = (event: MouseEvent) => {
+          const target = event.target as HTMLElement;
+          const anchor = target.closest('a');
+
+          if (anchor && anchor.href) {
+            const url = new URL(anchor.href);
+            const currentOrigin = new URL(iframeSrc!).origin;
+
+            if (url.origin === currentOrigin) {
+              const path = url.pathname;
+              if (fileUrls.has(path)) {
+                event.preventDefault();
+                onNavigate(path);
+              }
+            }
+          }
+        };
+
+        iframeWindow.document.addEventListener('click', handleClick);
+        return () => {
+          iframeWindow.document.removeEventListener('click', handleClick);
+        };
+      } catch (error) {
+        console.warn("Could not attach click listener to iframe (likely due to cross-origin restrictions or iframe not fully loaded):", error);
+      }
+    };
+
+    iframe.addEventListener('load', handleLoad);
+    return () => {
+      iframe.removeEventListener('load', handleLoad);
+    };
+  }, [iframeSrc, fileUrls, onNavigate]);
 
   return (
     <div className="w-full h-full bg-var-bg-muted flex flex-col">
@@ -245,6 +289,7 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
         )}
         {iframeSrc && (
           <iframe
+            ref={iframeRef}
             key={iframeSrc}
             src={iframeSrc}
             title="Project Preview"
