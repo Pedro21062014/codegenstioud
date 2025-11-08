@@ -3,6 +3,10 @@ import { AppLogo, FileIcon, CubeIcon, SettingsIcon, DownloadIcon, CloseIcon, Git
 import { IntegrationProvider, ProjectFile } from '../types';
 import type { Session } from '@supabase/supabase-js';
 
+import cloudImage from './models image/cloud.png';
+import firebaseImage from './models image/firebase.png';
+import neonImage from './models image/neon.png';
+
 interface SidebarProps {
   files: ProjectFile[];
   envVars: Record<string, string>;
@@ -254,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="space-y-2">
                  <Tooltip text="Baixar Projeto (ZIP)">
-                    <button onClick={onDownload} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                    <button type="button" aria-label="Baixar Projeto (ZIP)" onClick={onDownload} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                         <DownloadIcon />
                     </button>
                 </Tooltip>
@@ -369,7 +373,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                      <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <DatabaseIcon />
+                            <img src={neonImage} alt="Neon" className="w-6 h-6" />
                             <h3 className="font-semibold text-var-fg-default">Neon</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte um banco de dados PostgreSQL serverless.</p>
@@ -395,7 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <DatabaseIcon />
+                            <img src={firebaseImage} alt="Firebase Firestore" className="w-6 h-6" />
                             <h3 className="font-semibold text-var-fg-default">Firebase Firestore</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Firebase para operações de banco de dados.</p>
@@ -408,7 +412,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <DatabaseIcon />
+                            <img src={cloudImage} alt="Google Cloud" className="w-6 h-6" />
                             <h3 className="font-semibold text-var-fg-default">Google Cloud</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Google Cloud para serviços backend poderosos.</p>
