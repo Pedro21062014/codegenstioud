@@ -63,6 +63,7 @@ const ContextMenu: React.FC<{
             >
                 {actions.map((action, index) => (
                     <button
+                        type="button"
                         key={index}
                         onClick={() => {
                             action.onClick();
@@ -132,17 +133,18 @@ const EnvironmentPanel: React.FC<{ vars: Record<string, string>, onSave: (vars: 
                 onChange={(e) => handleChange(index, 'value', e.target.value)}
                 className="w-full p-1.5 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle text-xs font-mono focus:outline-none focus:ring-1 focus:ring-var-accent/50"
                 />
-                <button onClick={() => handleRemove(index)} className="p-1 text-var-fg-subtle hover:text-red-400">
+                <button type="button" aria-label="Remover variável de ambiente" onClick={() => handleRemove(index)} className="p-1 text-var-fg-subtle hover:text-red-400">
                     <TrashIcon className="w-4 h-4" />
                 </button>
             </div>
             ))}
         </div>
         <div className="flex-shrink-0 mt-2 space-y-2">
-            <button onClick={handleAdd} className="w-full text-sm py-1.5 border border-dashed border-var-border-default rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+            <button type="button" onClick={handleAdd} className="w-full text-sm py-1.5 border border-dashed border-var-border-default rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                 Adicionar Variável
             </button>
             <button 
+                type="button"
                 onClick={handleSaveChanges} 
                 disabled={!hasChanges}
                 className="w-full bg-var-accent text-var-accent-fg text-sm font-medium py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -219,38 +221,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="w-16 bg-var-bg-muted p-2 flex flex-col items-center justify-between border-r border-var-border-default">
             <div>
                  <Tooltip text="Página Inicial / Novo Projeto">
-                    <button onClick={onNewProject} className="p-1 mb-2 rounded-lg hover:bg-var-bg-interactive flex items-center justify-center w-full">
+                    <button type="button" aria-label="Página Inicial / Novo Projeto" onClick={onNewProject} className="p-1 mb-2 rounded-lg hover:bg-var-bg-interactive flex items-center justify-center w-full">
                         <AppLogo className="w-8 h-8 text-var-accent" />
                     </button>
                 </Tooltip>
                 <div className="space-y-2">
                     <Tooltip text="Explorador de Arquivos">
-                        <button onClick={() => setActiveTab('files')} className={`p-2 rounded-lg transition-colors ${activeTab === 'files' ? 'text-var-fg-default bg-var-bg-interactive' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}>
+                        <button type="button" aria-label="Explorador de Arquivos" onClick={() => setActiveTab('files')} className={`p-2 rounded-lg transition-colors ${activeTab === 'files' ? 'text-var-fg-default bg-var-bg-interactive' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}>
                             <FileIcon />
                         </button>
                     </Tooltip>
                      <Tooltip text="Variáveis de Ambiente">
-                        <button onClick={() => setActiveTab('environment')} className={`p-2 rounded-lg transition-colors ${activeTab === 'environment' ? 'text-var-fg-default bg-var-bg-interactive' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}>
+                        <button type="button" aria-label="Variáveis de Ambiente" onClick={() => setActiveTab('environment')} className={`p-2 rounded-lg transition-colors ${activeTab === 'environment' ? 'text-var-fg-default bg-var-bg-interactive' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}>
                             <ShieldIcon />
                         </button>
                     </Tooltip>
                     <Tooltip text="Integrações">
-                        <button onClick={() => setActiveTab('integrations')} className={`p-2 rounded-lg transition-colors ${activeTab === 'integrations' ? 'text-var-fg-default bg-var-bg-interactive' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}>
+                        <button type="button" aria-label="Integrações" onClick={() => setActiveTab('integrations')} className={`p-2 rounded-lg transition-colors ${activeTab === 'integrations' ? 'text-var-fg-default bg-var-bg-interactive' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}>
                             <CubeIcon />
                         </button>
                     </Tooltip>
                     <Tooltip text="Salvar Projeto">
-                        <button onClick={onSaveProject} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                        <button type="button" aria-label="Salvar Projeto" onClick={onSaveProject} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                             <SaveIcon />
                         </button>
                     </Tooltip>
                     <Tooltip text="Meus Projetos">
-                        <button onClick={onOpenProjects} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                        <button type="button" aria-label="Meus Projetos" onClick={onOpenProjects} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                             <ProjectsIcon />
                         </button>
                     </Tooltip>
                     <Tooltip text="Gerador de Imagem">
-                        <button onClick={onOpenImageStudio} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                        <button type="button" aria-label="Gerador de Imagem" onClick={onOpenImageStudio} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                             <ImageIcon />
                         </button>
                     </Tooltip>
@@ -264,19 +266,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </Tooltip>
                 {session ? (
                     <Tooltip text={`Sair (${session.user.email})`}>
-                        <button onClick={onLogout} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                        <button type="button" aria-label={`Sair (${session.user.email})`} onClick={onLogout} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                             <LogOutIcon />
                         </button>
                     </Tooltip>
                 ) : (
                     <Tooltip text="Login / Registrar">
-                        <button onClick={onLogin} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                        <button type="button" aria-label="Login / Registrar" onClick={onLogin} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                             <LogInIcon />
                         </button>
                     </Tooltip>
                 )}
                 <Tooltip text="Configurações">
-                    <button onClick={onOpenSettings} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                    <button type="button" aria-label="Configurações" onClick={onOpenSettings} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                         <SettingsIcon />
                     </button>
                 </Tooltip>
@@ -290,7 +292,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {activeTab === 'files' ? 'Explorador' : activeTab === 'environment' ? 'Ambiente' : 'Integrações'}
                 </h2>
                 {onClose && (
-                    <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive lg:hidden">
+                    <button type="button" aria-label="Fechar painel" onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive lg:hidden">
                         <CloseIcon />
                     </button>
                 )}
@@ -301,6 +303,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {files.map(file => (
                     <li key={file.name}>
                         <button
+                            type="button"
                             onClick={() => onFileSelect(file.name)}
                             onContextMenu={(e) => handleContextMenu(e, file)}
                             className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors ${
@@ -312,6 +315,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 ref={renameInputRef}
                                 type="text"
                                 defaultValue={file.name}
+                                aria-label="Renomear arquivo"
                                 className="bg-var-bg-default w-full text-var-fg-default text-sm outline-none ring-1 ring-var-accent"
                                 onBlur={(e) => handleRename(file.name, e.target.value)}
                                 onKeyDown={(e) => {
@@ -339,6 +343,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Importe repositórios para começar rapidamente.</p>
                         <button 
+                            type="button"
                             onClick={onOpenGithubImport}
                             className="w-full bg-var-bg-subtle hover:bg-var-bg-default border border-var-border-default text-var-fg-default text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
@@ -352,6 +357,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Permita que a IA modifique seu banco de dados.</p>
                         <button 
+                            type="button"
                             onClick={onOpenSupabaseAdmin}
                             className="w-full bg-green-600/80 hover:bg-green-600 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
@@ -365,6 +371,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Integre pagamentos em seu aplicativo.</p>
                         <button 
+                            type="button"
                             onClick={onOpenStripeModal}
                             className="w-full bg-[#635BFF]/80 hover:bg-[#635BFF] text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
@@ -378,6 +385,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte um banco de dados PostgreSQL serverless.</p>
                         <button 
+                            type="button"
                             onClick={onOpenNeonModal}
                             className="w-full bg-emerald-500/80 hover:bg-emerald-500 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
@@ -391,6 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Adicione mapas interativos ao seu projeto.</p>
                         <button
+                            type="button"
                             onClick={onOpenOSMModal}
                             className="w-full bg-blue-500/80 hover:bg-blue-500 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
@@ -404,6 +413,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Firebase para operações de banco de dados.</p>
                         <button
+                            type="button"
                             onClick={onOpenFirebaseFirestoreModal}
                             className="w-full bg-orange-500/80 hover:bg-orange-500 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
@@ -417,6 +427,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Conecte seu projeto Google Cloud para serviços backend poderosos.</p>
                         <button
+                            type="button"
                             onClick={onOpenGoogleCloudModal}
                             className="w-full bg-blue-600/80 hover:bg-blue-600 text-white text-sm font-medium py-1.5 rounded-md transition-colors"
                         >
