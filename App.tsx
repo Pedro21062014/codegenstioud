@@ -344,7 +344,7 @@ const App: React.FC = () => {
       url.searchParams.delete('projectId');
       window.history.pushState({ path: url.href }, '', url.href);
     }
-  }, [setProject, canManipulateHistory]);
+  }, [setProject, setView, canManipulateHistory]);
 
 
   const handleLoadProject = useCallback((projectId: number, confirmLoad: boolean = true) => {
@@ -417,21 +417,52 @@ const App: React.FC = () => {
   }, [setIsProUser, canManipulateHistory]);
 
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      alert("Você precisa estar logado para salvar configurações.");
+      return;
+    }
     
-    const settingsData = {
-      ...newSettings,
-      id: session.user.id,
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      const settingsData = {
+        ...newSettings,
+        id: session.user.id,
+        updated_at: new Date().toISOString(),
+      };
 
-    const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
-    
-    if (error) {
-        alert(`Erro ao salvar configurações: ${error.message}`);
+      console.log('Salvando configurações:', Object.keys(newSettings));
+
+      const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
+      
+      if (error) {
         console.error("Supabase save settings error:", error);
-    } else {
-        setUserSettings(data);
+        
+        // Tratamento específico para erros comuns
+        if (error.code === '42501') {
+          alert("Erro de permissão: Verifique se as políticas RLS estão configuradas corretamente no Supabase.");
+        } else if (error.code === 'PGRST116') {
+          alert("Perfil não encontrado. Tente fazer login novamente.");
+        } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+          alert("Erro de schema: Execute o script SQL fornecido no painel do Supabase.");
+        } else {
+          alert(`Erro ao salvar configurações: ${error.message}`);
+        }
+      } else {
+        console.log('Configurações salvas com sucesso:', data);
+        setUserSettings(prev => ({ ...prev, ...data }));
+        
+        // Feedback visual de sucesso
+        const successMessage = Object.keys(newSettings).length === 1 
+          ? `Configuração "${Object.keys(newSettings)[0]}" salva com sucesso!`
+          : 'Configurações salvas com sucesso!';
+        
+        // Usar um timeout para mostrar a mensagem após o modal fechar
+        setTimeout(() => {
+          alert(successMessage);
+        }, 100);
+      }
+    } catch (err) {
+      console.error("Erro inesperado ao salvar configurações:", err);
+      alert("Erro inesperado ao salvar configurações. Tente novamente.");
     }
   }, [session]);
 

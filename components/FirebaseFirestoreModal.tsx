@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { CloseIcon } from './Icons';
+import { UserSettings } from '../types';
 
 interface FirebaseFirestoreModalProps {
   isOpen: boolean;
   onClose: () => void;
-  settings: {
-    id: string;
-    firebase_project_id?: string;
-    firebase_service_account_key?: string;
-  };
-  onSave: (settings: { firebase_project_id?: string; firebase_service_account_key?: string; }) => void;
+  settings: UserSettings;
+  onSave: (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => void;
 }
 
 export const FirebaseFirestoreModal: React.FC<FirebaseFirestoreModalProps> = ({ isOpen, onClose, settings, onSave }) => {
@@ -35,57 +33,55 @@ export const FirebaseFirestoreModal: React.FC<FirebaseFirestoreModalProps> = ({ 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-      <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-        <h2 className="text-2xl font-bold mb-4">Firebase Firestore Integration</h2>
-
-        <p className="mb-4">
-          Connect your Firebase project to enable Firestore database operations.
-          You can find this information in your Firebase console.
+    <div 
+      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-var-fg-default">Gerenciar Integração Firebase Firestore</h2>
+          <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Fechar">
+            <CloseIcon />
+          </button>
+        </div>
+        
+        <p className="text-var-fg-muted text-sm mb-4">
+          Conecte seu projeto Firebase para habilitar operações de banco de dados Firestore. Você pode encontrar essas informações no console do Firebase.
         </p>
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="firebase-project-id" className="block text-sm font-medium text-gray-700">
-              Firebase Project ID
-            </label>
+            <label className="block text-sm font-medium text-var-fg-default mb-1">Firebase Project ID</label>
             <input
               type="text"
-              id="firebase-project-id"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               placeholder="my-firebase-project-12345"
+              className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-orange-500/50"
             />
           </div>
 
           <div>
-            <label htmlFor="firebase-sa-key" className="block text-sm font-medium text-gray-700">
-              Service Account Key (JSON)
-            </label>
+            <label className="block text-sm font-medium text-var-fg-default mb-1">Service Account Key (JSON)</label>
             <textarea
-              id="firebase-sa-key"
-              rows={8}
+              rows={6}
               value={serviceAccountKey}
               onChange={(e) => setServiceAccountKey(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder={`{\n  "type": "service_account",\n  "project_id": "...",\n  "private_key_id": "...",\n  "..."\n}`}
+              placeholder={`{\n  "type": "service_account",\n  "project_id": "...",\n  "..."\n}`}
+              className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-orange-500/50 font-mono text-xs"
             />
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end space-x-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            Cancel
-          </button>
+        <div className="mt-6 flex justify-end">
           <button
             onClick={handleSave}
-            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="px-4 py-2 rounded-md text-sm font-medium text-var-fg-default bg-var-accent hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-var-bg-subtle focus:ring-var-accent"
           >
-            Save
+            Salvar Credenciais
           </button>
         </div>
       </div>
