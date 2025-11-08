@@ -298,28 +298,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
             </p>
 
             <div className="relative mt-8 group">
-                {/* Container para a luz orbitante */}
-                <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                    {/* Luz principal que orbita */}
-                    <div className="absolute top-0 left-1/2 w-4 h-4 bg-blue-400 rounded-full transform -translate-x-1/2 animate-orbit-light shadow-lg"
-                         style={{
-                           boxShadow: '0 0 20px rgba(59, 130, 246, 0.8), 0 0 40px rgba(59, 130, 246, 0.6), 0 0 60px rgba(59, 130, 246, 0.4)'
-                         }}>
-                    </div>
-                    {/* Rastro da luz */}
-                    <div className="absolute inset-0 rounded-2xl animate-glow-trail"></div>
-                </div>
-                
-                {/* Efeito de borda luminosa */}
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent rounded-2xl opacity-20"></div>
-                
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-var-accent to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
                 <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
                     title="Digite seu prompt aqui"
-                    className="relative w-full h-28 p-4 bg-var-bg-subtle border border-var-border-default rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-var-accent/50 text-var-fg-default placeholder-var-fg-subtle z-10"
+                    className="relative w-full h-28 p-4 bg-var-bg-subtle border border-var-border-default rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-var-accent/50 text-var-fg-default placeholder-var-fg-subtle"
                 />
                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
                     <button className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Gerar código" aria-label="Gerar código">
