@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
-import { ProjectFile, AIMode } from '../types';
+import { ProjectFile, AIMode, GenerationMode } from '../types';
 
-const getSystemPrompt = (files: ProjectFile[], envVars: Record<string, string>, mode: AIMode): string => {
+const getSystemPrompt = (files: ProjectFile[], envVars: Record<string, string>, mode: AIMode, generationMode: GenerationMode): string => {
   const fileContent = files.map(file => `
 --- FILE: ${file.name} ---
 \`\`\`${file.language}
@@ -45,6 +45,8 @@ ${file.content}
   - "environmentVariables": (object, opcional) Um objeto de variáveis de ambiente para definir. Para excluir uma variável, defina seu valor como null.
   - "supabaseAdminAction": (object, opcional) Para executar uma modificação de banco de dados (por exemplo, criar uma tabela), forneça um objeto com uma chave "query" contendo a instrução SQL a ser executada. Exemplo: { "query": "CREATE TABLE posts (id bigint primary key, title text);" }. Use isso SOMENTE para esquema de banco de dados ou manipulação de dados.
 
+${generationMode === 'full' ? '- MODO DE GERAÇÃO COMPLETA: Quando no modo "completo", você DEVE gerar um aplicativo completo e totalmente funcional, incluindo todas as páginas, componentes, estilos e lógica necessários para a funcionalidade principal solicitada pelo usuário. Não omita arquivos ou funcionalidades essenciais. Pense em um aplicativo pronto para produção.' : ''}
+
 Current project files:
 ${fileContent.length > 0 ? fileContent : "Nenhum arquivo existe ainda."}
 
@@ -76,11 +78,12 @@ export const generateCodeStreamWithGemini = async (
   modelId: string,
   apiKey: string,
   mode: AIMode,
+  generationMode: GenerationMode,
   attachments?: { data: string; mimeType: string }[]
 ): Promise<string> => {
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const systemInstruction = getSystemPrompt(existingFiles, envVars, mode);
+    const systemInstruction = getSystemPrompt(existingFiles, envVars, mode, generationMode);
 
     const userParts: any[] = [{ text: prompt }];
     if (attachments && attachments.length > 0) {

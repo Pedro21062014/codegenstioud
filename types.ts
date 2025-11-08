@@ -19,7 +19,9 @@ export enum AIMode {
   Agent = 'agent',
 }
 
-export type AppType = 'auto' | 'react-vite' | 'html-css-js' | 'angular' | 'nextjs'; // New AppType
+export type AppType = 'auto' | 'react-vite' | 'html-css-js' | 'angular' | 'nextjs';
+
+export type GenerationMode = 'full' | 'quick';
 
 export interface AIModel {
   id: string;

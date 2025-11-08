@@ -18,7 +18,7 @@ import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
-import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType } from './types'; // Import AppType
+import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType, GenerationMode } from './types';
 import { downloadProjectAsZip } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
@@ -195,7 +195,7 @@ const App: React.FC = () => {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
-  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType } | null>(null); // Add appType
+  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType, generationMode: GenerationMode } | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
@@ -477,7 +477,7 @@ const App: React.FC = () => {
     }
   }, [userSettings, setProject]);
 
-  const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] = [], appType: AppType = 'auto') => {
+  const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] = [], appType: AppType = 'auto', generationMode: GenerationMode = 'full') => {
     setCodeError(null);
     setLastModelUsed({ provider, model });
 
@@ -493,13 +493,13 @@ const App: React.FC = () => {
     }
     
     if (provider === AIProvider.Gemini && !effectiveGeminiApiKey) {
-      setPendingPrompt({ prompt, provider, model, mode, attachments, appType }); // Pass appType
+      setPendingPrompt({ prompt, provider, model, mode, attachments, appType, generationMode });
       setApiKeyModalOpen(true);
       return;
     }
 
     if (provider === AIProvider.OpenRouter && !userSettings?.openrouter_api_key) {
-      setPendingPrompt({ prompt, provider, model, mode, attachments, appType }); // Pass appType
+      setPendingPrompt({ prompt, provider, model, mode, attachments, appType, generationMode });
       setOpenRouterKeyModalOpen(true);
       return;
     }
@@ -585,7 +585,7 @@ const App: React.FC = () => {
 
         switch (provider) {
           case AIProvider.Gemini:
-            fullResponse = await generateCodeStreamWithGemini(currentPrompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, attachments); // Use currentPrompt
+            fullResponse = await generateCodeStreamWithGemini(currentPrompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, mode, generationMode, attachments);
             break;
           case AIProvider.OpenAI:
             fullResponse = await generateCodeStreamWithOpenAI(currentPrompt, project.files, onChunk, model); // Use currentPrompt
@@ -696,7 +696,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!pendingPrompt) return;
 
-    const { prompt, provider, model, mode, attachments, appType } = pendingPrompt; // Destructure appType
+    const { prompt, provider, model, mode, attachments, appType, generationMode } = pendingPrompt;
     let canProceed = false;
 
     if (provider === AIProvider.Gemini && effectiveGeminiApiKey) {
@@ -707,7 +707,7 @@ const App: React.FC = () => {
 
     if (canProceed) {
       setPendingPrompt(null);
-      handleSendMessage(prompt, provider, model, mode, attachments, appType); // Pass appType
+      handleSendMessage(prompt, provider, model, mode, attachments, appType, generationMode);
     }
   }, [pendingPrompt, effectiveGeminiApiKey, userSettings, handleSendMessage]);
 
@@ -889,9 +889,9 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType) => {
+          onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType, generationMode: GenerationMode) => {
             const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
-            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType); // Pass appType
+            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType, generationMode);
           }}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
@@ -980,9 +980,9 @@ const App: React.FC = () => {
         return <WelcomeScreen
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType) => {
+          onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType, generationMode: GenerationMode) => {
             const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
-            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType); // Pass appType
+            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType, generationMode);
           }}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
