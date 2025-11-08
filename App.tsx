@@ -18,13 +18,16 @@ import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
-import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode } from './types';
+import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType } from './types'; // Import AppType
 import { downloadProjectAsZip } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
 import { generateCodeStreamWithGemini, generateProjectName } from './services/geminiService';
 import { generateCodeStreamWithOpenAI } from './services/openAIService';
 import { generateCodeStreamWithDeepSeek } from './services/deepseekService';
 import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
+
+const MAX_RETRIES = 3; // Define max retries for AI generation
+
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
@@ -192,7 +195,7 @@ const App: React.FC = () => {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
-  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] } | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType } | null>(null); // Add appType
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
@@ -474,24 +477,29 @@ const App: React.FC = () => {
     }
   }, [userSettings, setProject]);
 
-  const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] = []) => {
+  const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] = [], appType: AppType = 'auto') => {
     setCodeError(null);
     setLastModelUsed({ provider, model });
+
+    let currentPrompt = prompt;
+    if (appType !== 'auto') {
+      currentPrompt = `${prompt} (Gerar em ${appType})`; // Append appType to prompt
+    }
     
-    if (prompt.toLowerCase().includes('ia') && !effectiveGeminiApiKey) {
+    if (currentPrompt.toLowerCase().includes('ia') && !effectiveGeminiApiKey) {
       setProject(p => ({...p, chatMessages: [...p.chatMessages, { role: 'assistant', content: 'Para adicionar funcionalidades de IA ao seu projeto, primeiro adicione sua chave de API do Gemini.'}]}));
       setApiKeyModalOpen(true);
       return;
     }
     
     if (provider === AIProvider.Gemini && !effectiveGeminiApiKey) {
-      setPendingPrompt({ prompt, provider, model, mode, attachments });
+      setPendingPrompt({ prompt, provider, model, mode, attachments, appType }); // Pass appType
       setApiKeyModalOpen(true);
       return;
     }
 
     if (provider === AIProvider.OpenRouter && !userSettings?.openrouter_api_key) {
-      setPendingPrompt({ prompt, provider, model, mode, attachments });
+      setPendingPrompt({ prompt, provider, model, mode, attachments, appType }); // Pass appType
       setOpenRouterKeyModalOpen(true);
       return;
     }
@@ -516,7 +524,7 @@ const App: React.FC = () => {
     if (isFirstGeneration && effectiveGeminiApiKey) {
       setIsInitializing(true);
       setGeneratingFile('Analisando o prompt...');
-      const newName = await generateProjectName(prompt, effectiveGeminiApiKey);
+      const newName = await generateProjectName(currentPrompt, effectiveGeminiApiKey); // Use currentPrompt
       setProject(p => ({...p, projectName: newName}));
       setGeneratingFile('Preparando para gerar arquivos...');
     }
@@ -566,90 +574,55 @@ const App: React.FC = () => {
       if (!isProUser) {
         setDailyUsage(prev => prev + 1);
       }
+    } // Close the if block here
+
+    let result = null;
+    let lastError: Error | null = null;
+
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      try {
+        let fullResponse;
+
+        switch (provider) {
+          case AIProvider.Gemini:
+            fullResponse = await generateCodeStreamWithGemini(currentPrompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, attachments); // Use currentPrompt
+            break;
+          case AIProvider.OpenAI:
+            fullResponse = await generateCodeStreamWithOpenAI(currentPrompt, project.files, onChunk, model); // Use currentPrompt
+            break;
+          case AIProvider.DeepSeek:
+             fullResponse = await generateCodeStreamWithDeepSeek(currentPrompt, project.files, onChunk, model); // Use currentPrompt
+            break;
+          case AIProvider.OpenRouter:
+            fullResponse = await generateCodeStreamWithOpenRouter(currentPrompt, project.files, project.envVars, onChunk, userSettings!.openrouter_api_key!, model); // Use currentPrompt
+            break;
+          default:
+            throw new Error('Provedor de IA não suportado');
+        }
+        
+        let finalJsonPayload = fullResponse;
+        const separatorIndex = fullResponse.indexOf('\n---\n');
+        if (separatorIndex !== -1) {
+            finalJsonPayload = fullResponse.substring(separatorIndex + 5);
+        }
+        
+        result = extractAndParseJson(finalJsonPayload);
+        break; // If successful, break out of retry loop
+      } catch (error) {
+        console.error(`Attempt ${i + 1} failed:`, error);
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (i < MAX_RETRIES - 1) {
+          setProject(p => ({
+            ...p,
+            chatMessages: [...p.chatMessages, { role: 'assistant', content: `Erro de análise JSON na resposta da IA (tentativa ${i + 1}/${MAX_RETRIES}). Tentando novamente...` }]
+          }));
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+        }
+      }
     }
 
-    try {
-      let fullResponse;
-
-      switch (provider) {
-        case AIProvider.Gemini:
-          fullResponse = await generateCodeStreamWithGemini(prompt, project.files, project.envVars, onChunk, model, effectiveGeminiApiKey!, attachments);
-          break;
-        case AIProvider.OpenAI:
-          fullResponse = await generateCodeStreamWithOpenAI(prompt, project.files, onChunk, model);
-          break;
-        case AIProvider.DeepSeek:
-           fullResponse = await generateCodeStreamWithDeepSeek(prompt, project.files, onChunk, model);
-          break;
-        case AIProvider.OpenRouter:
-          fullResponse = await generateCodeStreamWithOpenRouter(prompt, project.files, project.envVars, onChunk, userSettings!.openrouter_api_key!, model);
-          break;
-        default:
-          throw new Error('Provedor de IA não suportado');
-      }
-      
-      let finalJsonPayload = fullResponse;
-      const separatorIndex = fullResponse.indexOf('\n---\n');
-      if (separatorIndex !== -1) {
-          finalJsonPayload = fullResponse.substring(separatorIndex + 5);
-      }
-      
-      const result = extractAndParseJson(finalJsonPayload);
-      
-      if (result.files && Array.isArray(result.files)) {
-        setProject(p => {
-            const updatedFilesMap = new Map(p.files.map(f => [f.name, f]));
-            result.files.forEach((file: ProjectFile) => {
-                updatedFilesMap.set(file.name, file);
-            });
-            const newFiles = Array.from(updatedFilesMap.values());
-            let newActiveFile = p.activeFile;
-            if (result.files.length > 0 && !newActiveFile) {
-                const foundFile = result.files.find((f: ProjectFile) => f.name.includes('html')) || result.files[0];
-                newActiveFile = foundFile.name;
-            }
-            return { ...p, files: newFiles, activeFile: newActiveFile };
-        });
-      }
-      
-      if (result.environmentVariables) {
-        if (result.environmentVariables.GEMINI_API_KEY !== undefined && userSettings?.gemini_api_key) {
-            result.environmentVariables.GEMINI_API_KEY = userSettings.gemini_api_key;
-        }
-
-        setProject(p => {
-            const newVars = { ...p.envVars };
-            for (const [key, value] of Object.entries(result.environmentVariables)) {
-                if (value === null) {
-                    delete newVars[key];
-                } else {
-                    newVars[key] = value as string;
-                }
-            }
-            return { ...p, envVars: newVars };
-        });
-      }
-
-       setProject(p => {
-            const newMessages = [...p.chatMessages];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage?.role === 'assistant') {
-                lastMessage.content = result.message || 'Geração concluída.';
-                lastMessage.summary = result.summary;
-                lastMessage.isThinking = false;
-                return { ...p, chatMessages: newMessages };
-            }
-            return p;
-        });
-
-       if (result.supabaseAdminAction) {
-         await handleSupabaseAdminAction(result.supabaseAdminAction);
-       }
-        
-    } catch (error) {
-      console.error("Error handling send message:", error);
-      const errorMessageText = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
-      
+    if (!result) {
+      const errorMessageText = lastError instanceof Error ? lastError.message : "Ocorreu um erro desconhecido após várias tentativas.";
       setProject(p => {
             const newMessages = [...p.chatMessages];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -661,17 +634,69 @@ const App: React.FC = () => {
             }
             return { ...p, chatMessages: newMessages };
         });
-    } finally {
-        if (isFirstGeneration) {
-            setIsInitializing(false);
-        }
+      setIsInitializing(false);
+      return;
+    }
+    
+    if (result.files && Array.isArray(result.files)) {
+      setProject(p => {
+          const updatedFilesMap = new Map(p.files.map(f => [f.name, f]));
+          result.files.forEach((file: ProjectFile) => {
+              updatedFilesMap.set(file.name, file);
+          });
+          const newFiles = Array.from(updatedFilesMap.values());
+          let newActiveFile = p.activeFile;
+          if (result.files.length > 0 && !newActiveFile) {
+              const foundFile = result.files.find((f: ProjectFile) => f.name.includes('html')) || result.files[0];
+              newActiveFile = foundFile.name;
+          }
+          return { ...p, files: newFiles, activeFile: newActiveFile };
+      });
+    }
+    
+    if (result.environmentVariables) {
+      if (result.environmentVariables.GEMINI_API_KEY !== undefined && userSettings?.gemini_api_key) {
+          result.environmentVariables.GEMINI_API_KEY = userSettings.gemini_api_key;
+      }
+
+      setProject(p => {
+          const newVars = { ...p.envVars };
+          for (const [key, value] of Object.entries(result.environmentVariables)) {
+              if (value === null) {
+                  delete newVars[key];
+              } else {
+                  newVars[key] = value as string;
+              }
+          }
+          return { ...p, envVars: newVars };
+      });
+    }
+
+     setProject(p => {
+          const newMessages = [...p.chatMessages];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage?.role === 'assistant') {
+              lastMessage.content = result.message || 'Geração concluída.';
+              lastMessage.summary = result.summary;
+              lastMessage.isThinking = false;
+              return { ...p, chatMessages: newMessages };
+          }
+          return p;
+      });
+
+     if (result.supabaseAdminAction) {
+       await handleSupabaseAdminAction(result.supabaseAdminAction);
+     }
+      
+    if (isFirstGeneration) {
+        setIsInitializing(false);
     }
   }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile, setOpenRouterKeyModalOpen]);
 
   useEffect(() => {
     if (!pendingPrompt) return;
 
-    const { prompt, provider, model, mode, attachments } = pendingPrompt;
+    const { prompt, provider, model, mode, attachments, appType } = pendingPrompt; // Destructure appType
     let canProceed = false;
 
     if (provider === AIProvider.Gemini && effectiveGeminiApiKey) {
@@ -682,7 +707,7 @@ const App: React.FC = () => {
 
     if (canProceed) {
       setPendingPrompt(null);
-      handleSendMessage(prompt, provider, model, mode, attachments);
+      handleSendMessage(prompt, provider, model, mode, attachments, appType); // Pass appType
     }
   }, [pendingPrompt, effectiveGeminiApiKey, userSettings, handleSendMessage]);
 
@@ -864,9 +889,9 @@ const App: React.FC = () => {
         return <WelcomeScreen 
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt, attachments, aiModel) => {
+          onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType) => {
             const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
-            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments);
+            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType); // Pass appType
           }}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}
@@ -955,9 +980,9 @@ const App: React.FC = () => {
         return <WelcomeScreen
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
-          onPromptSubmit={(prompt, attachments, aiModel) => {
+          onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType) => {
             const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
-            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments);
+            handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType); // Pass appType
           }}
           onShowPricing={() => setView('pricing')}
           onShowProjects={() => setView('projects')}

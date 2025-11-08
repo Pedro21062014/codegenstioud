@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SparklesIcon, AppLogo, GithubIcon, LinkedInIcon, FolderIcon, LogOutIcon, CodeIcon, SendIcon } from './Icons';
 import type { Session } from '@supabase/supabase-js';
-import { ProjectFile, AIProvider, AIModel, AIMode } from '../types';
+import { ProjectFile, AIProvider, AIModel, AIMode, AppType } from '../types'; // Add AppType
 import { AI_MODELS } from '../constants';
 import geminiImage from '../components/models image/gemini.png'; // Import the image
 
+// Define application types
+const APP_TYPES: { id: AppType; name: string }[] = [
+  { id: 'auto', name: 'Auto (IA escolhe)' },
+  { id: 'react-vite', name: 'React (Vite)' },
+  { id: 'html-css-js', name: 'HTML/CSS/JS Puro' },
+  { id: 'angular', name: 'Angular' },
+  { id: 'nextjs', name: 'Next.js' },
+];
+
 interface WelcomeScreenProps {
-  onPromptSubmit: (prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string) => void;
+  onPromptSubmit: (prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType) => void; // Add appType
   onShowPricing: () => void;
   onShowProjects: () => void;
   onOpenGithubImport: () => void;
@@ -78,6 +87,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
   const timeoutRef = useRef<number | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showAppTypeDropdown, setShowAppTypeDropdown] = useState(false); // New state for app type dropdown
 
   const allowedNonProModels = [
     'gemini-2.0-flash',
@@ -89,6 +99,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
     : AI_MODELS.filter(model => allowedNonProModels.includes(model.id));
 
   const [selectedModelId, setSelectedModelId] = useState<string>(filteredModels[0]?.id || '');
+  const [selectedAppType, setSelectedAppType] = useState<AppType>(APP_TYPES[0].id); // New state for selected app type
 
   useEffect(() => {
     if (!filteredModels.some(model => model.id === selectedModelId)) {
@@ -99,6 +110,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
   const handleModelSelect = (modelId: string) => {
     setSelectedModelId(modelId);
     setShowModelDropdown(false);
+  };
+
+  const handleAppTypeSelect = (appType: AppType) => { // New handler for app type selection
+    setSelectedAppType(appType);
+    setShowAppTypeDropdown(false);
   };
 
   const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
@@ -148,7 +164,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (prompt.trim()) {
-        onPromptSubmit(prompt.trim(), [], selectedModelId);
+        onPromptSubmit(prompt.trim(), [], selectedModelId, selectedAppType); // Pass selectedAppType
       }
     }
   };
@@ -313,9 +329,28 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                             </div>
                         )}
                     </div>
+                    <div className="relative"> {/* New dropdown for app type */}
+                        <button onClick={() => setShowAppTypeDropdown(!showAppTypeDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all flex items-center gap-2" title="Selecionar tipo de aplicativo">
+                            {APP_TYPES.find(type => type.id === selectedAppType)?.name || "Tipo de App"}
+                        </button>
+                        {showAppTypeDropdown && (
+                            <div className="absolute bottom-full left-0 mb-2 w-48 bg-var-bg-interactive border border-var-border-default rounded-lg shadow-lg p-2">
+                                {APP_TYPES.map((type) => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => handleAppTypeSelect(type.id)}
+                                        className="flex items-center w-full px-3 py-2 text-sm text-var-fg-default hover:bg-var-bg-subtle rounded-md"
+                                        title={type.name}
+                                    >
+                                        {type.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <button 
-                    onClick={() => onPromptSubmit(prompt.trim(), [], selectedModelId)}
+                    onClick={() => onPromptSubmit(prompt.trim(), [], selectedModelId, selectedAppType)}
                     disabled={!prompt.trim()}
                     className="absolute bottom-4 right-4 flex items-center justify-center w-10 h-10 bg-var-accent text-var-accent-fg rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group"
                     aria-label="Enviar prompt"
