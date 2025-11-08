@@ -70,7 +70,7 @@ export const PublishModal: React.FC<LocalRunModalProps> = ({ isOpen, onClose, on
                 {isLargeProject && (
                   <div className="mb-2 p-2 bg-orange-500/10 border border-orange-500/30 rounded-md">
                     <p className="text-xs text-orange-400">
-                      <strong>Atenção:</strong> Este projeto é grande (>50MB). Será salvo localmente para melhor performance.
+                      <strong>Atenção:</strong> Este projeto é grande ({'>'}50MB). Será salvo localmente para melhor performance.
                     </p>
                   </div>
                 )}
