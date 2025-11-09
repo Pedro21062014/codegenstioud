@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppLogo, FileIcon, CubeIcon, SettingsIcon, DownloadIcon, CloseIcon, GithubIcon, SupabaseIcon, LogInIcon, LogOutIcon, SaveIcon, ProjectsIcon, ImageIcon, ShieldIcon, TrashIcon, EditIcon, StripeIcon, MapIcon, DatabaseIcon } from './Icons';
+import { AppLogo, FileIcon, CubeIcon, SettingsIcon, DownloadIcon, CloseIcon, GithubIcon, LogInIcon, LogOutIcon, SaveIcon, ProjectsIcon, ImageIcon, ShieldIcon, TrashIcon, EditIcon, MapIcon, DatabaseIcon } from './Icons';
 import { IntegrationProvider, ProjectFile } from '../types';
 import type { Session } from '@supabase/supabase-js';
 
 import cloudImage from './models image/cloud.png';
 import firebaseImage from './models image/firebase.png';
 import neonImage from './models image/neon.png';
+import stripeImage from './models image/stripe.png';
+import supabaseImage from './models image/supabase.png';
 
 interface SidebarProps {
   files: ProjectFile[];
@@ -351,7 +353,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                      <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <SupabaseIcon />
+                            <img src={supabaseImage} alt="Supabase" className="w-6 h-6" />
                             <h3 className="font-semibold text-var-fg-default">Supabase</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Permita que a IA modifique seu banco de dados.</p>
@@ -365,7 +367,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
-                            <StripeIcon />
+                            <img src={stripeImage} alt="Stripe" className="w-6 h-6" />
                             <h3 className="font-semibold text-var-fg-default">Stripe</h3>
                         </div>
                         <p className="text-xs text-var-fg-muted mb-3">Integre pagamentos em seu aplicativo.</p>

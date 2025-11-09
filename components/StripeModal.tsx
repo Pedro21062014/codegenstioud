@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CloseIcon, StripeIcon } from './Icons';
+import { CloseIcon } from './Icons';
 import { UserSettings } from '../types';
+import stripeLogo from './models image/stripe.png';
 
 interface StripeModalProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export const StripeModal: React.FC<StripeModalProps> = ({ isOpen, onClose, setti
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-var-fg-default flex items-center gap-2">
-            <StripeIcon /> Gerenciar Integração Stripe
+            <img src={stripeLogo} alt="Stripe" className="w-6 h-6" /> Gerenciar Integração Stripe
           </h2>
           <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
             <CloseIcon />
