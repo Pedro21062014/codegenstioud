@@ -12,6 +12,8 @@ const APP_TYPES: { id: AppType; name: string }[] = [
   { id: 'html-css-js', name: 'HTML/CSS/JS Puro' },
   { id: 'angular', name: 'Angular' },
   { id: 'nextjs', name: 'Next.js' },
+  { id: 'chrome-extension', name: 'Extensão para Chrome' },
+  { id: 'vscode-extension', name: 'Extensão para VS Code' },
 ];
 
 interface WelcomeScreenProps {
@@ -92,6 +94,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
 
   const allowedNonProModels = [
     'gemini-2.0-flash',
+    'gemini-2.5-flash',
     'openrouter/google/gemini-pro-1.5',
   ];
 
@@ -124,7 +127,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
     setShowGenerationModeDropdown(false);
   };
 
-  const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
+  const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'gemini-2.5-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
 
   useEffect(() => {
     const type = () => {

@@ -235,13 +235,49 @@ export const generateCodeStreamWithGemini = async (
       }
     }
 
+    let parsedResponse: any;
+    let cleanedResponse = fullResponse.trim();
+
+    // Attempt to clean and parse the JSON response
+    try {
+        parsedResponse = JSON.parse(cleanedResponse);
+    } catch (parseError: any) {
+        console.warn("Initial JSON parse failed, attempting cleanup:", parseError);
+        // Try to extract JSON from markdown code block
+        const jsonMatch = cleanedResponse.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch && jsonMatch[1]) {
+            cleanedResponse = jsonMatch[1];
+        } else {
+            // Try to find the first { and last }
+            const firstBrace = cleanedResponse.indexOf('{');
+            const lastBrace = cleanedResponse.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            }
+        }
+
+        try {
+            parsedResponse = JSON.parse(cleanedResponse);
+        } catch (finalParseError: any) {
+            console.error("Final JSON parse failed after cleanup:", finalParseError);
+            const errorJson = JSON.stringify({
+                message: `A resposta da IA continha um JSON malformado e não pôde ser corrigida. Detalhes: ${finalParseError.message}`,
+                files: existingFiles
+            });
+            return { response: errorJson, fromCache: false };
+        }
+    }
+
+    // Ensure the parsed response is stringified back for consistency
+    const finalValidJson = JSON.stringify(parsedResponse);
+
     // Cache the response for Gemini 2.0 Flash
     if (actualModelId === 'gemini-2.0-flash') {
       const cacheHash = generateCacheHash(prompt, existingFiles, envVars, mode, generationMode, attachments);
-      setCachedResponse(cacheHash, fullResponse);
+      setCachedResponse(cacheHash, finalValidJson);
     }
 
-    return { response: fullResponse, fromCache: false };
+    return { response: finalValidJson, fromCache: false };
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
