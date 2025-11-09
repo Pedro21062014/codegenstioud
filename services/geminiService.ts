@@ -248,11 +248,14 @@ export const generateCodeStreamWithGemini = async (
         if (jsonMatch && jsonMatch[1]) {
             cleanedResponse = jsonMatch[1];
         } else {
-            // Try to find the first { and last }
+            // More aggressive cleanup: find the first '{' and the last '}'
             const firstBrace = cleanedResponse.indexOf('{');
             const lastBrace = cleanedResponse.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
                 cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+            } else {
+                // If no valid braces found, it's likely not JSON
+                throw new Error("No valid JSON structure found in AI response.");
             }
         }
 

@@ -85,6 +85,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
   
   const allowedNonProModels = [
     'gemini-2.0-flash',
+    'gemini-2.5-flash',
     'openrouter/google/gemini-pro-1.5',
   ];
 
@@ -144,7 +145,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
     }
   };
   
-  const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
+  const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'gemini-2.5-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
   
   return (
     <div className="bg-var-bg-subtle w-full flex flex-col h-full border-l border-var-border-default">

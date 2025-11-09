@@ -332,7 +332,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                         className="flex items-center w-full px-3 py-2 text-sm text-var-fg-default hover:bg-var-bg-subtle rounded-md gap-2"
                                         title={model.name}
                                     >
-                                        {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                                        {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'gemini-2.5-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                                         {model.name}
                                     </button>
                                 ))}
