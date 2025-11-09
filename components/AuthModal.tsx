@@ -23,16 +23,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     
     try {
       if (isLoginView) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        console.log('🔐 Tentando login com email:', email);
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        console.log('📥 Resposta do login:', { data, error });
+        
+        if (error) {
+          console.error('❌ Erro de login:', error);
+          throw error;
+        }
+        
+        console.log('✅ Login bem-sucedido!');
         onClose();
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        console.log('📝 Tentando registrar com email:', email);
+        const { data, error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}`
+          }
+        });
+        console.log('📥 Resposta do signup:', { data, error });
+        
+        if (error) {
+          console.error('❌ Erro de registro:', error);
+          throw error;
+        }
+        
+        console.log('✅ Registro bem-sucedido!');
         setMessage('Verifique seu e-mail para o link de confirmação!');
+        setEmail('');
+        setPassword('');
       }
     } catch (err: any) {
-      setError(err.error_description || err.message);
+      console.error('💥 Erro na autenticação:', err);
+      const errorMsg = err.error_description || err.message || 'Erro desconhecido';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

@@ -34,6 +34,12 @@ import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import geminiImage from './components/models image/gemini.png'; // Import the image
+import { debugService } from './services/debugService';
+
+// Make debugService available in console for testing
+if (typeof window !== 'undefined') {
+  (window as any).debugService = debugService;
+}
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -837,9 +843,9 @@ const App: React.FC = () => {
   }, [codeError, lastModelUsed, handleSendMessage]);
   
   const handleSaveProject = useCallback(async () => {
-    console.log('handleSaveProject called');
+    console.log('💾 handleSaveProject called');
     if (!session) {
-      console.log('No session, opening auth modal');
+      console.log('⚠️ No session, opening auth modal');
       setPostLoginAction(() => () => handleSaveProject());
       setAuthModalOpen(true);
       return;
@@ -850,7 +856,12 @@ const App: React.FC = () => {
       return;
     }
 
-    console.log('Saving project:', projectName, files.length, 'files');
+    console.log('📝 Salvando projeto:', {
+      name: projectName,
+      filesCount: files.length,
+      userId: session.user.id,
+      timestamp: new Date().toISOString()
+    });
 
     const projectData = {
       name: projectName,
@@ -861,9 +872,11 @@ const App: React.FC = () => {
       updated_at: new Date().toISOString(),
     };
 
+    console.log('📊 Dados do projeto a salvar:', projectData);
+
     if (currentProjectId) {
       // Update existing project
-      console.log('Updating existing project:', currentProjectId);
+      console.log('🔄 Atualizando projeto existente:', currentProjectId);
       const { data, error } = await supabase
         .from('projects')
         .update(projectData)
@@ -872,16 +885,22 @@ const App: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('Update error:', error);
-        alert(`Erro ao atualizar o projeto: ${error.message}`);
+        console.error('❌ Erro de atualização:', error);
+        console.error('📋 Detalhes do erro:', {
+          code: error.code,
+          message: error.message,
+          hint: error.hint,
+          details: error.details
+        });
+        alert(`Erro ao atualizar o projeto: ${error.message}\n\nCódigo: ${error.code}\n\nPor favor, abra o console (F12) para mais detalhes.`);
       } else {
-        console.log('Update success:', data);
+        console.log('✅ Atualização bem-sucedida:', data);
         setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? data : p));
         alert(`Projeto "${projectName}" atualizado com sucesso!`);
       }
     } else {
       // Insert new project
-      console.log('Inserting new project');
+      console.log('➕ Inserindo novo projeto');
       const { data, error } = await supabase
         .from('projects')
         .insert(projectData)
@@ -889,10 +908,16 @@ const App: React.FC = () => {
         .single();
 
       if (error) {
-        console.error('Insert error:', error);
-        alert(`Erro ao salvar o projeto: ${error.message}`);
+        console.error('❌ Erro de inserção:', error);
+        console.error('📋 Detalhes do erro:', {
+          code: error.code,
+          message: error.message,
+          hint: error.hint,
+          details: error.details
+        });
+        alert(`Erro ao salvar o projeto: ${error.message}\n\nCódigo: ${error.code}\n\nPor favor, abra o console (F12) para mais detalhes.`);
       } else {
-        console.log('Insert success:', data);
+        console.log('✅ Inserção bem-sucedida:', data);
         setProject(p => ({ ...p, currentProjectId: data.id }));
         setSavedProjects([...savedProjects, data]);
         alert(`Projeto "${projectName}" salvo com sucesso!`);
