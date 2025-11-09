@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { ProjectFile, Theme } from '../types';
 import { CodePreview } from './CodePreview';
 import { TerminalView } from './TerminalView';
-import { CloseIcon, SunIcon, MoonIcon, SparklesIcon, TerminalIcon, KeyIcon, RefreshIcon } from './Icons';
+import { CloseIcon, SunIcon, MoonIcon, SparklesIcon, TerminalIcon, KeyIcon, RefreshIcon, VersionIcon } from './Icons';
 
 // Componente de carregamento para o Monaco Editor
 const MonacoEditorLoader = ({ 
@@ -60,23 +60,45 @@ interface EditorViewProps {
   onClearError: () => void;
   onError: (errorMessage: string) => void;
   envVars: Record<string, string>;
-  initialPath: string; // Add initialPath prop
+  initialPath: string;
+  onToggleVersionModal?: () => void;
 }
 
-const EditorHeader: React.FC<{ projectName: string; onRunLocally: () => void; theme: Theme; onThemeChange: (theme: Theme) => void }> = ({ projectName, onRunLocally, theme, onThemeChange }) => (
+const EditorHeader: React.FC<{ 
+  projectName: string; 
+  onRunLocally: () => void; 
+  theme: Theme; 
+  onThemeChange: (theme: Theme) => void;
+  onToggleVersionModal?: () => void;
+}> = ({ projectName, onRunLocally, theme, onThemeChange, onToggleVersionModal }) => (
     <div className="flex items-center justify-between p-2 border-b border-var-border-default flex-shrink-0">
-        <div className="text-sm text-var-fg-muted font-medium">{projectName}</div>
+        <div className="flex items-center gap-2">
+            <div className="text-sm text-var-fg-muted font-medium">{projectName}</div>
+            {onToggleVersionModal && (
+                <button 
+                    onClick={onToggleVersionModal}
+                    className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors"
+                    aria-label="Ver histórico de versões"
+                    title="Histórico de versões"
+                >
+                    <VersionIcon />
+                </button>
+            )}
+        </div>
         <div className="flex items-center gap-2">
              <button
                 onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
                 className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors"
-                aria-label="Toggle theme"
+                aria-label="Alternar tema"
+                title="Alternar tema"
             >
                 {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
             </button>
             <button 
               onClick={onRunLocally}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-var-accent text-var-accent-fg rounded-md hover:opacity-90 transition-opacity font-semibold"
+              title="Executar localmente"
+              aria-label="Executar localmente"
             >
                 <TerminalIcon />
                 <span>Executar Local</span>
@@ -106,12 +128,14 @@ const Toast: React.FC<{ message: string; onFix: () => void; onClose: () => void 
                                 <button
                                 onClick={onFix}
                                 className="px-3 py-1 text-xs font-semibold text-white bg-var-accent rounded hover:opacity-90 transition-all flex items-center gap-1.5"
+                                title="Corrigir erro com IA"
+                                aria-label="Corrigir erro com IA"
                                 >
                                 <SparklesIcon /> Corrigir com IA
                                 </button>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-1 rounded-full hover:bg-var-bg-interactive text-var-fg-subtle hover:text-var-fg-default flex-shrink-0">
+                        <button onClick={onClose} className="p-1 rounded-full hover:bg-var-bg-interactive text-var-fg-subtle hover:text-var-fg-default flex-shrink-0" title="Fechar notificação" aria-label="Fechar notificação">
                             <CloseIcon className="w-4 h-4" />
                         </button>
                     </div>
@@ -157,9 +181,17 @@ const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange,
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 className="text-sm text-var-fg-default bg-transparent w-full focus:outline-none"
+                placeholder="Digite a URL..."
+                title="URL da página"
+                aria-label="URL da página"
             />
           </div>
-          <button onClick={onRefresh} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+          <button 
+            onClick={onRefresh} 
+            className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive"
+            title="Atualizar página"
+            aria-label="Atualizar página"
+          >
             <RefreshIcon className="w-4 h-4" />
           </button>
         </div>
@@ -170,7 +202,7 @@ const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange,
     );
   };
 
-export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, projectName, theme, onThemeChange, onFileSelect, onFileDelete, onRunLocally, codeError, onFixCode, onClearError, onError, envVars }) => {
+export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, projectName, theme, onThemeChange, onFileSelect, onFileDelete, onRunLocally, codeError, onFixCode, onClearError, onError, envVars, onToggleVersionModal }) => {
   const [viewMode, setViewMode] = useState<'code' | 'preview' | 'terminal'>('code');
   const [previewUrl, setPreviewUrl] = useState('/');
   const [previewKey, setPreviewKey] = useState(Date.now());
@@ -267,7 +299,13 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
 
   return (
     <div className="flex flex-col h-full bg-var-bg-subtle">
-      <EditorHeader projectName={projectName} onRunLocally={onRunLocally} theme={theme} onThemeChange={onThemeChange} />
+      <EditorHeader 
+        projectName={projectName} 
+        onRunLocally={onRunLocally} 
+        theme={theme} 
+        onThemeChange={onThemeChange}
+        onToggleVersionModal={onToggleVersionModal}
+      />
       
       <div className="flex items-center justify-between border-b border-var-border-default bg-var-bg-muted flex-shrink-0">
         <div className="flex-grow flex-shrink overflow-x-auto overflow-y-hidden">
@@ -279,9 +317,16 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
                 className={`flex items-center px-4 py-2.5 text-sm border-r border-var-border-default relative transition-colors duration-200 ${
                     activeFile === file.name ? 'text-var-fg-default bg-var-bg-subtle' : 'text-var-fg-muted hover:bg-var-bg-interactive'
                 }`}
+                title={`Arquivo: ${file.name}`}
+                aria-label={`Arquivo: ${file.name}`}
                 >
                 <span className="truncate max-w-xs">{file.name}</span>
-                <span onClick={(e) => handleDeleteFile(e, file.name)} className="ml-3 p-1 rounded-full hover:bg-var-bg-interactive">
+                <span 
+                  onClick={(e) => handleDeleteFile(e, file.name)} 
+                  className="ml-3 p-1 rounded-full hover:bg-var-bg-interactive"
+                  title={`Excluir arquivo ${file.name}`}
+                  aria-label={`Excluir arquivo ${file.name}`}
+                >
                     <CloseIcon className="w-3 h-3" />
                 </span>
                  {activeFile === file.name && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-var-accent"></div>}
@@ -294,12 +339,16 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
           <button
             onClick={() => setViewMode('code')}
             className={`px-3 py-1 text-xs rounded transition-colors ${viewMode === 'code' ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}
+            title="Visualizar código"
+            aria-label="Visualizar código"
           >
             Código
           </button>
           <button
             onClick={() => setViewMode('preview')}
             className={`px-3 py-1 text-xs rounded transition-colors ${viewMode === 'preview' ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}
+            title="Visualizar prévia"
+            aria-label="Visualizar prévia"
           >
             Visualização
           </button>
@@ -309,6 +358,8 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
               setViewMode('terminal');
             }}
             className={`px-3 py-1 text-xs rounded transition-colors ${viewMode === 'terminal' ? 'bg-var-accent text-var-accent-fg' : 'text-var-fg-muted hover:bg-var-bg-interactive'}`}
+            title="Abrir terminal"
+            aria-label="Abrir terminal"
           >
             Terminal
           </button>

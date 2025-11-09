@@ -219,7 +219,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
               >
                 {filteredModels.map(model => (
                       <option key={model.id} value={model.id} title={model.name} className="flex items-center gap-2">
-                        {showGeminiImage && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                        {model.provider === AIProvider.Gemini && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                         {model.provider === AIProvider.OpenRouter && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                         {model.name}
                       </option>

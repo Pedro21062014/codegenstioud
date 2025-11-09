@@ -76,6 +76,15 @@ export interface SavedProject {
   updated_at: string;
 }
 
+export interface ProjectVersion {
+  id: string;
+  timestamp: string;
+  description: string;
+  files: ProjectFile[];
+  chatHistory: ChatMessage[];
+  envVars: Record<string, string>;
+}
+
 export interface TerminalViewProps {
   onCommand?: (command: string) => void;
   height?: string;

@@ -18,6 +18,7 @@ import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
+import { VersionModal } from './components/VersionModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType, GenerationMode } from './types';
 import { downloadProjectAsZip, getProjectSize, formatFileSize } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
@@ -30,7 +31,7 @@ import { generateCodeStreamWithOpenRouter } from './services/openRouterService';
 const MAX_RETRIES = 3; // Define max retries for AI generation
 
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
+import { MenuIcon, ChatIcon, AppLogo, VersionIcon } from './components/Icons';
 import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import geminiImage from './components/models image/gemini.png'; // Import the image
@@ -46,6 +47,7 @@ if (typeof window !== 'undefined') {
 interface HeaderProps {
   onToggleSidebar: () => void;
   onToggleChat: () => void;
+  onToggleVersionModal: () => void;
   projectName: string;
   session: Session | null;
   selectedModel: { id: string; name: string; provider: AIProvider };
@@ -53,7 +55,7 @@ interface HeaderProps {
   isProUser: boolean; // Add isProUser to HeaderProps
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectName, session, selectedModel, onModelChange, isProUser }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, onToggleVersionModal, projectName, session, selectedModel, onModelChange, isProUser }) => {
   const allowedNonProModels = [
     'gemini-2.0-flash',
     'openrouter/google/gemini-pro-1.5',
@@ -76,7 +78,17 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
       <button onClick={onToggleSidebar} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir barra lateral">
         <MenuIcon />
       </button>
-      <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
+        <button 
+          onClick={onToggleVersionModal}
+          className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive"
+          aria-label="Ver histórico de versões"
+          title="Histórico de versões"
+        >
+          <VersionIcon />
+        </button>
+      </div>
       <select
         className="bg-var-bg-subtle text-var-fg-default rounded-md p-1 text-sm relative z-50"
         value={selectedModel.id}
@@ -208,6 +220,7 @@ const App: React.FC = () => {
   const [isOSMModalOpen, setOSMModalOpen] = useState(false);
   const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
   const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
+  const [isVersionModalOpen, setVersionModalOpen] = useState(false);
   
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useState<boolean>(() => LocalStorageService.getIsProUser());
@@ -1105,6 +1118,17 @@ const App: React.FC = () => {
         return { ...p, files: updatedFiles, activeFile: newActiveFile };
     });
   }, [project, setProject]);
+
+  const handleRestoreVersion = useCallback((version: any) => {
+    setProject(p => ({
+        ...p,
+        files: version.files,
+        chatMessages: version.chatHistory,
+        envVars: version.envVars,
+        activeFile: version.files.find(f => f.name.includes('html'))?.name || version.files[0]?.name || null
+    }));
+    alert(`Projeto restaurado para a versão de ${new Date(version.timestamp).toLocaleString('pt-BR')}`);
+  }, [setProject]);
   
   useEffect(() => {
     const handleResize = () => {
@@ -1159,6 +1183,7 @@ const App: React.FC = () => {
             <Header
               onToggleSidebar={() => setSidebarOpen(true)}
               onToggleChat={() => setChatOpen(true)}
+              onToggleVersionModal={() => setVersionModalOpen(true)}
               projectName={projectName}
               session={session}
               selectedModel={selectedModel}
@@ -1202,6 +1227,7 @@ const App: React.FC = () => {
                   codeError={codeError} onFixCode={handleFixCode} onClearError={() => setCodeError(null)} onError={setCodeError} envVars={envVars}
                   initialPath={activeFile ? `/${activeFile}` : '/index.html'}
                   onNavigate={(path) => setProject(p => ({ ...p, activeFile: path.startsWith('/') ? path.substring(1) : path }))}
+                  onToggleVersionModal={() => setVersionModalOpen(true)}
                 />
               </main>
               
@@ -1305,6 +1331,15 @@ const App: React.FC = () => {
         onClose={() => setFirebaseFirestoreModalOpen(false)}
         settings={userSettings || { id: session?.user?.id || '' }}
         onSave={handleSaveSettings}
+      />
+      <VersionModal
+        isOpen={isVersionModalOpen}
+        onClose={() => setVersionModalOpen(false)}
+        projectName={projectName}
+        currentFiles={files}
+        currentChatHistory={chatMessages}
+        currentEnvVars={envVars}
+        onRestoreVersion={handleRestoreVersion}
       />
     </div>
   );
