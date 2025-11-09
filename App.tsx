@@ -34,7 +34,9 @@ import { MenuIcon, ChatIcon, AppLogo } from './components/Icons';
 import { supabase } from './services/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import geminiImage from './components/models image/gemini.png'; // Import the image
+import openrouterImage from './components/models image/openrouter.png'; // Import the OpenRouter image
 import { debugService } from './services/debugService';
+import { LocalStorageService } from './services/localStorageService';
 
 // Make debugService available in console for testing
 if (typeof window !== 'undefined') {
@@ -55,6 +57,11 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
   const allowedNonProModels = [
     'gemini-2.0-flash',
     'openrouter/google/gemini-pro-1.5',
+    'deepseek/deepseek-chat-v3.1:free',
+    'z-ai/glm-4.5-air:free',
+    'moonshotai/kimi-k2:free',
+    'deepseek/deepseek-r1:free',
+    'google/gemini-2.0-flash-exp:free',
   ];
 
   const filteredModels = isProUser
@@ -62,6 +69,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
     : AI_MODELS.filter(model => allowedNonProModels.includes(model.id));
 
   const showGeminiImage = !isProUser && (selectedModel.id === 'gemini-2.0-flash' || selectedModel.id === 'openrouter/google/gemini-pro-1.5');
+  const showOpenRouterImage = selectedModel.provider === AIProvider.OpenRouter;
 
   return (
     <div className="lg:hidden flex justify-between items-center p-2 bg-black border-b border-var-border-default flex-shrink-0">
@@ -88,6 +96,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, projectN
       </select>
       <div className="flex items-center gap-2">
         {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+        {showOpenRouterImage && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
         <button onClick={onToggleChat} className="p-2 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Abrir chat">
           <ChatIcon />
         </button>
@@ -201,36 +210,36 @@ const App: React.FC = () => {
   const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
   
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
-  const [isProUser, setIsProUser] = useLocalStorage<boolean>('is-pro-user', false);
-  const [theme, setTheme] = useLocalStorage<Theme>('theme', 'light');
+  const [isProUser, setIsProUser] = useState<boolean>(() => LocalStorageService.getIsProUser());
+  const [theme, setTheme] = useState<Theme>(() => LocalStorageService.getTheme());
   const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType, generationMode: GenerationMode } | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
   const [codeError, setCodeError] = useState<string | null>(null);
   const [lastModelUsed, setLastModelUsed] = useState<{ provider: AIProvider, model: string }>({ provider: AIProvider.Gemini, model: 'gemini-1.5-pro' });
-  const [dailyUsage, setDailyUsage] = useState<number>(0);
+  const [dailyUsage, setDailyUsage] = useState<number>(() => LocalStorageService.getDailyUsage());
   const [selectedModel, setSelectedModel] = useState<{ id: string; name: string; provider: AIProvider }>(AI_MODELS[0]);
 
   // Load daily usage from localStorage
   useEffect(() => {
     const today = new Date().toDateString();
-    const stored = localStorage.getItem('dailyUsage');
-    const storedDate = localStorage.getItem('dailyUsageDate');
+    const stored = LocalStorageService.getDailyUsage();
+    const storedDate = LocalStorageService.getDailyUsageDate();
 
     if (storedDate === today && stored) {
-      setDailyUsage(parseInt(stored, 10));
+      setDailyUsage(stored);
     } else {
       // Reset for new day
       setDailyUsage(0);
-      localStorage.setItem('dailyUsage', '0');
-      localStorage.setItem('dailyUsageDate', today);
+      LocalStorageService.setDailyUsage(0);
+      LocalStorageService.setDailyUsageDate(today);
     }
   }, []);
 
   // Save daily usage to localStorage
   useEffect(() => {
-    localStorage.setItem('dailyUsage', dailyUsage.toString());
+    LocalStorageService.setDailyUsage(dailyUsage);
   }, [dailyUsage]);
 
   const [session, setSession] = useState<Session | null>(null);
@@ -253,52 +262,77 @@ const App: React.FC = () => {
   // --- Data Fetching and Auth ---
   const fetchUserData = useCallback(async (user: User) => {
     try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means "no rows found"
-        console.error("Error fetching profile data:", profileError);
-        throw profileError;
-      }
-      setUserSettings(profileData || null); // Ensure userSettings is null if no profile found
+      // Para usuários Pro, carregar do Supabase
+      if (isProUser) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means "no rows found"
+          console.error("Error fetching profile data:", profileError);
+          throw profileError;
+        }
+        setUserSettings(profileData || null); // Ensure userSettings is null if no profile found
 
-      const { data: projectsData, error: projectsError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', user.id);
-      
-      if (projectsError) {
-        console.error("Error fetching projects data:", projectsError);
-        throw projectsError;
+        const { data: projectsData, error: projectsError } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (projectsError) {
+          console.error("Error fetching projects data:", projectsError);
+          throw projectsError;
+        }
+        setSavedProjects(projectsData || []);
+      } else {
+        // Para usuários gratuitos, carregar do localStorage
+        console.log('Usuário gratuito - carregando dados do localStorage');
+        const localSettings = LocalStorageService.getUserSettings();
+        const localProjects = LocalStorageService.getProjects();
+        setUserSettings(localSettings);
+        setSavedProjects(localProjects);
       }
-      setSavedProjects(projectsData || []);
 
     } catch (error) {
-      console.error("Error fetching user data from Supabase:", error);
-      // Optionally, display an error message to the user
-      // alert("Não foi possível carregar seus dados do Supabase. Por favor, tente novamente.");
+      console.error("Error fetching user data:", error);
+      // Para usuários gratuitos, tentar carregar do localStorage como fallback
+      if (!isProUser) {
+        console.log('Fallback - carregando dados do localStorage');
+        const localSettings = LocalStorageService.getUserSettings();
+        const localProjects = LocalStorageService.getProjects();
+        setUserSettings(localSettings);
+        setSavedProjects(localProjects);
+      }
     }
-  }, []);
+  }, [isProUser]);
 
   useEffect(() => {
     const initializeSession = async () => {
-      // 1. Get the initial session
+      // 1. Get initial session
       const { data: { session: initialSession } } = await supabase.auth.getSession();
       setSession(initialSession);
+      
+      // 2. Carregar dados do usuário se estiver logado
       if (initialSession?.user) {
         await fetchUserData(initialSession.user);
+      } else {
+        // Para usuários não logados, carregar dados do localStorage
+        const localSettings = LocalStorageService.getUserSettings();
+        const localProjects = LocalStorageService.getProjects();
+        setUserSettings(localSettings);
+        setSavedProjects(localProjects);
       }
-      // 2. Set loading to false after the initial check is complete
+      
+      // 3. Set loading to false after initial check is complete
       setIsLoadingData(false);
     };
 
     setIsLoadingData(true);
     initializeSession();
 
-    // 3. Set up a listener for subsequent auth state changes
+    // 4. Set up a listener for subsequent auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       if (newSession?.user) {
@@ -308,16 +342,23 @@ const App: React.FC = () => {
           setPostLoginAction(null);
         }
       } else {
-        // Clear user-specific data on logout
+        // Clear user-specific data on logout (apenas dados do Supabase)
         setUserSettings(null);
         setSavedProjects([]);
+        // Manter dados do localStorage para usuários gratuitos
+        if (!isProUser) {
+          const localSettings = LocalStorageService.getUserSettings();
+          const localProjects = LocalStorageService.getProjects();
+          setUserSettings(localSettings);
+          setSavedProjects(localProjects);
+        }
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserData, postLoginAction]);
+  }, [fetchUserData, postLoginAction, isProUser]);
 
 
   // --- Project Management & URL Handling ---
@@ -474,6 +515,28 @@ const App: React.FC = () => {
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
     console.log('handleSaveSettings chamado com:', newSettings);
     
+    // Para usuários gratuitos, salvar apenas localmente (exceto dados da conta)
+    if (!isProUser) {
+      console.log('Usuário gratuito - salvando configurações localmente');
+      LocalStorageService.saveUserSettings(newSettings);
+      
+      // Atualizar o estado local imediatamente
+      const existingSettings = LocalStorageService.getUserSettings() || {};
+      const updatedSettings = { ...existingSettings, ...newSettings };
+      setUserSettings(updatedSettings);
+      
+      // Feedback visual de sucesso
+      const successMessage = Object.keys(newSettings).length === 1 
+        ? `Configuração "${Object.keys(newSettings)[0]}" salva localmente com sucesso!`
+        : 'Configurações salvas localmente com sucesso!';
+      
+      setTimeout(() => {
+        alert(successMessage);
+      }, 100);
+      return;
+    }
+    
+    // Para usuários Pro, salvar no Supabase
     if (!session?.user) {
       console.error('Usuário não está logado');
       alert("Você precisa estar logado para salvar configurações.");
@@ -487,7 +550,7 @@ const App: React.FC = () => {
         updated_at: new Date().toISOString(),
       };
 
-      console.log('Dados que serão salvos:', {
+      console.log('Dados que serão salvos no Supabase:', {
         userId: session.user.id,
         campos: Object.keys(newSettings),
         dados: settingsData
@@ -517,26 +580,11 @@ const App: React.FC = () => {
           alert(`Erro ao salvar configurações (${error.code}): ${error.message}`);
         }
       } else {
-        console.log('Configurações salvas com sucesso:', data);
-        console.log('Verificação - campos salvos no banco:', {
-          supabase_project_url: data.supabase_project_url ? '✓' : '✗',
-          supabase_anon_key: data.supabase_anon_key ? '✓' : '✗',
-          supabase_service_key: data.supabase_service_key ? '✓' : '✗',
-          gcp_project_id: data.gcp_project_id ? '✓' : '✗',
-          gcp_credentials: data.gcp_credentials ? '✓' : '✗',
-          firebase_project_id: data.firebase_project_id ? '✓' : '✗',
-          firebase_service_account_key: data.firebase_service_account_key ? '✓' : '✗'
-        });
+        console.log('Configurações salvas com sucesso no Supabase:', data);
         
         // Atualizar o estado local imediatamente
         setUserSettings(prev => {
           const updated = { ...prev, ...data };
-          console.log('Estado userSettings atualizado:', updated);
-          console.log('Verificação final - userSettings contém:', {
-            supabase_project_url: updated.supabase_project_url ? '✓' : '✗',
-            supabase_anon_key: updated.supabase_anon_key ? '✓' : '✗',
-            supabase_service_key: updated.supabase_service_key ? '✓' : '✗'
-          });
           return updated;
         });
         
@@ -554,7 +602,7 @@ const App: React.FC = () => {
       console.error("Erro inesperado ao salvar configurações:", err);
       alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}. Tente novamente.`);
     }
-  }, [session, setUserSettings]);
+  }, [session, setUserSettings, isProUser]);
 
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
     if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
@@ -844,6 +892,52 @@ const App: React.FC = () => {
   
   const handleSaveProject = useCallback(async () => {
     console.log('💾 handleSaveProject called');
+    
+    if (files.length === 0) {
+      alert("Não é possível salvar um projeto vazio.");
+      return;
+    }
+
+    const projectData = {
+      name: projectName,
+      files,
+      chat_history: chatMessages,
+      env_vars: envVars,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Para usuários gratuitos, salvar localmente
+    if (!isProUser) {
+      console.log('Usuário gratuito - salvando projeto localmente');
+      
+      // Gerar ID local único se não existir
+      let projectId = currentProjectId;
+      if (!projectId) {
+        projectId = Date.now() + Math.random(); // ID único baseado em timestamp
+      }
+      
+      const localProject: SavedProject = {
+        ...projectData,
+        id: projectId,
+        user_id: 'local-user', // Identificador para usuário local
+        created_at: new Date().toISOString(),
+      };
+
+      // Salvar no localStorage
+      LocalStorageService.addProject(localProject);
+      
+      // Atualizar estado
+      setProject(p => ({ ...p, currentProjectId: projectId }));
+      
+      // Atualizar lista de projetos locais
+      const updatedProjects = LocalStorageService.getProjects();
+      setSavedProjects(updatedProjects);
+      
+      alert(`Projeto "${projectName}" salvo localmente com sucesso!`);
+      return;
+    }
+
+    // Para usuários Pro, salvar no Supabase
     if (!session) {
       console.log('⚠️ No session, opening auth modal');
       setPostLoginAction(() => () => handleSaveProject());
@@ -851,35 +945,26 @@ const App: React.FC = () => {
       return;
     }
 
-    if (files.length === 0) {
-      alert("Não é possível salvar um projeto vazio.");
-      return;
-    }
-
-    console.log('📝 Salvando projeto:', {
+    console.log('📝 Salvando projeto no Supabase:', {
       name: projectName,
       filesCount: files.length,
       userId: session.user.id,
       timestamp: new Date().toISOString()
     });
 
-    const projectData = {
-      name: projectName,
-      files,
-      chat_history: chatMessages,
-      env_vars: envVars,
+    const supabaseProjectData = {
+      ...projectData,
       user_id: session.user.id,
-      updated_at: new Date().toISOString(),
     };
 
-    console.log('📊 Dados do projeto a salvar:', projectData);
+    console.log('📊 Dados do projeto a salvar no Supabase:', supabaseProjectData);
 
     if (currentProjectId) {
       // Update existing project
       console.log('🔄 Atualizando projeto existente:', currentProjectId);
       const { data, error } = await supabase
         .from('projects')
-        .update(projectData)
+        .update(supabaseProjectData)
         .eq('id', currentProjectId)
         .select()
         .single();
@@ -903,7 +988,7 @@ const App: React.FC = () => {
       console.log('➕ Inserindo novo projeto');
       const { data, error } = await supabase
         .from('projects')
-        .insert(projectData)
+        .insert(supabaseProjectData)
         .select()
         .single();
 
@@ -923,9 +1008,22 @@ const App: React.FC = () => {
         alert(`Projeto "${projectName}" salvo com sucesso!`);
       }
     }
-  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject]);
+  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject, isProUser]);
 
   const handleDeleteProject = useCallback(async (projectId: number) => {
+    // Para usuários gratuitos, excluir do localStorage
+    if (!isProUser) {
+      console.log('Usuário gratuito - excluindo projeto do localStorage');
+      LocalStorageService.deleteProject(projectId);
+      setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
+      if (currentProjectId === projectId) {
+        handleNewProject();
+      }
+      alert("Projeto excluído localmente com sucesso.");
+      return;
+    }
+
+    // Para usuários Pro, excluir do Supabase
     const { error } = await supabase.from('projects').delete().eq('id', projectId);
     if (error) {
       alert(`Erro ao excluir o projeto: ${error.message}`);
@@ -936,7 +1034,7 @@ const App: React.FC = () => {
       }
       alert("Projeto excluído com sucesso.");
     }
-  }, [currentProjectId, handleNewProject]);
+  }, [currentProjectId, handleNewProject, isProUser]);
 
   const handleOpenSettings = () => {
     if (session) {

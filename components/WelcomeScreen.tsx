@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { ProjectFile, AIProvider, AIModel, AIMode, AppType, GenerationMode } from '../types';
 import { AI_MODELS } from '../constants';
 import geminiImage from '../components/models image/gemini.png'; // Import the image
+import openrouterImage from '../components/models image/openrouter.png'; // Import the image
 
 // Define application types
 const APP_TYPES: { id: AppType; name: string }[] = [
@@ -96,6 +97,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
     'gemini-2.0-flash',
     'gemini-2.5-flash',
     'openrouter/google/gemini-pro-1.5',
+    'deepseek/deepseek-chat-v3.1:free',
+    'z-ai/glm-4.5-air:free',
+    'moonshotai/kimi-k2:free',
+    'deepseek/deepseek-r1:free',
+    'google/gemini-2.0-flash-exp:free',
   ];
 
   const filteredModels = isProUser
@@ -128,6 +134,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
   };
 
   const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'gemini-2.5-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
+  const showOpenRouterImage = filteredModels.find(m => m.id === selectedModelId)?.provider === AIProvider.OpenRouter;
 
   useEffect(() => {
     const type = () => {
@@ -208,7 +215,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                         }
 
                         resolve({
-                            // FIX: Cast `file` to `any` to access the non-standard `webkitRelativePath` property.
+                            // FIX: Cast `file` to `any` to access non-standard `webkitRelativePath` property.
                             name: (file as any).webkitRelativePath,
                             language: getFileLanguage(file.name),
                             content: content,
@@ -275,10 +282,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                 </button>
              ) : (
                 <>
-                    <a href="https://www.linkedin.com/in/pedro-berbis-freire-3b71bb37a/" target="_blank" rel="noopener noreferrer" className="text-var-fg-muted hover:text-var-fg-default transition-colors">
+                    <a href="https://www.linkedin.com/in/pedro-berbis-freire-3b71bb37a/" target="_blank" rel="noopener noreferrer" className="text-var-fg-muted hover:text-var-fg-default transition-colors" title="LinkedIn">
+                        <span className="sr-only">LinkedIn</span>
                         <LinkedInIcon />
                     </a>
-                    <button onClick={onLogout} className="p-1 rounded-md text-var-fg-muted hover:text-var-fg-default transition-colors">
+                    <button onClick={onLogout} className="p-1 rounded-md text-var-fg-muted hover:text-var-fg-default transition-colors" title="Sair" aria-label="Sair">
+                        <span className="sr-only">Sair</span>
                         <LogOutIcon />
                     </button>
                 </>
@@ -312,15 +321,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                 />
                 <div className="absolute bottom-4 left-4 flex items-center gap-2">
                     <button className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Gerar código" aria-label="Gerar código">
-                        <CodeIcon />
+                        <span className="sr-only">Gerar código</span>
+                        <span aria-hidden="true"><CodeIcon /></span>
                     </button>
-                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple directory="" webkitdirectory="" style={{ display: 'none' }} title="Selecionar pasta" />
+                    <input type="file" ref={folderInputRef} onChange={handleFolderSelect} multiple directory="" webkitdirectory="" style={{ display: 'none' }} title="Selecionar pasta" aria-label="Selecionar pasta" />
                     <button onClick={() => folderInputRef.current?.click()} className="p-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all" title="Carregar arquivos" aria-label="Carregar arquivos">
-                        +
+                        <span className="sr-only">Carregar arquivos</span>
+                        <span aria-hidden="true">+</span>
                     </button>
                     <div className="relative">
                         <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-3 py-2 bg-var-bg-interactive border border-var-border-default rounded-lg text-var-fg-muted hover:bg-opacity-80 transition-all flex items-center gap-2" title="Selecionar modelo de IA">
                             {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                            {showOpenRouterImage && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                             {filteredModels.find(m => m.id === selectedModelId)?.name || "Modelo"}
                         </button>
                         {showModelDropdown && (
@@ -333,6 +345,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                         title={model.name}
                                     >
                                         {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'gemini-2.5-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                                        {model.provider === AIProvider.OpenRouter && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                                         {model.name}
                                     </button>
                                 ))}

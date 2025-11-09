@@ -3,6 +3,7 @@ import { ChatMessage, AIProvider, AIModel, AIMode } from '../types';
 import { AI_MODELS } from '../constants';
 import { SparklesIcon, CloseIcon, AppLogo, PaperclipIcon } from './Icons';
 import geminiImage from '../components/models image/gemini.png'; // Import the image
+import openrouterImage from '../components/models image/openrouter.png'; // Import the OpenRouter image
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -87,6 +88,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
     'gemini-2.0-flash',
     'gemini-2.5-flash',
     'openrouter/google/gemini-pro-1.5',
+    'deepseek/deepseek-chat-v3.1:free',
+    'z-ai/glm-4.5-air:free',
+    'moonshotai/kimi-k2:free',
+    'deepseek/deepseek-r1:free',
+    'google/gemini-2.0-flash-exp:free',
   ];
 
   const filteredModels = isProUser
@@ -146,6 +152,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
   };
   
   const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'gemini-2.5-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
+  const showOpenRouterImage = filteredModels.find(m => m.id === selectedModelId)?.provider === AIProvider.OpenRouter;
   
   return (
     <div className="bg-var-bg-subtle w-full flex flex-col h-full border-l border-var-border-default">
@@ -213,6 +220,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, i
                 {filteredModels.map(model => (
                       <option key={model.id} value={model.id} title={model.name} className="flex items-center gap-2">
                         {showGeminiImage && (model.id === 'gemini-2.0-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                        {model.provider === AIProvider.OpenRouter && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                         {model.name}
                       </option>
                     ))}
