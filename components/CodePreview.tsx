@@ -187,11 +187,18 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
                             // Function to check if URL is internal
                             function isInternal(url) {
                                 try {
+                                    // If it's a relative path, it's internal
+                                    if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../')) {
+                                        return true;
+                                    }
+                                    
+                                    // For absolute URLs, check if same origin as blob URL
                                     const parsedUrl = new URL(url, baseUrl);
                                     const currentOrigin = new URL(baseUrl).origin;
                                     return parsedUrl.origin === currentOrigin;
                                 } catch (e) {
-                                    return false;
+                                    // If URL parsing fails, assume it's internal if it looks like a path
+                                    return url.startsWith('/') || url.startsWith('./') || url.startsWith('../');
                                 }
                             }
 
