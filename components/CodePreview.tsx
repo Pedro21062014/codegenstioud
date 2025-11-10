@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ProjectFile, Theme } from '../types';
+import { ExternalLinkIcon } from './Icons';
 
 declare global {
   interface Window {
@@ -169,30 +170,110 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
                 const navigationScript = `
                     <script>
                         (function() {
-                            const originalHref = window.location.href;
-                            let currentHref = originalHref;
+                            console.log('Initializing navigation script...');
+                            
+                            // Store the original base URL
+                            const baseUrl = window.location.href;
+                            
+                            // Function to handle internal navigation
+                            function navigateToPath(path) {
+                                console.log('Navigating to:', path);
+                                window.parent.postMessage({ 
+                                    type: 'navigate', 
+                                    path: path 
+                                }, '*');
+                            }
 
-                            Object.defineProperty(window.location, 'href', {
-                                get: function() { return currentHref; },
-                                set: function(value) {
-                                    currentHref = value;
-                                    const url = new URL(value, originalHref);
-                                    if (url.origin === window.location.origin) {
-                                        const path = url.pathname;
-                                        window.parent.postMessage({ type: 'navigate', path: path }, '*');
+                            // Function to check if URL is internal
+                            function isInternal(url) {
+                                try {
+                                    const parsedUrl = new URL(url, baseUrl);
+                                    const currentOrigin = new URL(baseUrl).origin;
+                                    return parsedUrl.origin === currentOrigin;
+                                } catch (e) {
+                                    return false;
+                                }
+                            }
+
+                            // Intercept clicks on all elements
+                            document.addEventListener('click', function(event) {
+                                const target = event.target;
+                                
+                                // Handle links
+                                const link = target.closest('a');
+                                if (link && link.href) {
+                                    console.log('Link clicked:', link.href);
+                                    
+                                    if (isInternal(link.href)) {
+                                        event.preventDefault();
+                                        const url = new URL(link.href);
+                                        const path = url.pathname + url.search + url.hash;
+                                        navigateToPath(path);
                                     } else {
-                                        window.location.replace(value);
+                                        // External link - open in new tab
+                                        event.preventDefault();
+                                        window.open(link.href, '_blank');
+                                    }
+                                    return;
+                                }
+
+                                // Handle buttons with onclick
+                                const button = target.closest('button');
+                                if (button) {
+                                    const onclick = button.getAttribute('onclick');
+                                    if (onclick) {
+                                        console.log('Button onclick:', onclick);
+                                        
+                                        // Simple pattern matching for navigation
+                                        const hrefMatch = onclick.match(/(?:window\.location|location)\.href\s*=\s*['"]([^'"]+)['"]/);
+                                        if (hrefMatch) {
+                                            event.preventDefault();
+                                            const url = hrefMatch[1];
+                                            if (isInternal(url)) {
+                                                navigateToPath(url.startsWith('/') ? url : '/' + url);
+                                            } else {
+                                                window.open(url, '_blank');
+                                            }
+                                        }
                                     }
                                 }
                             });
 
-                            window.location.assign = function(url) {
-                                window.location.href = url;
-                            };
+                            // Intercept form submissions
+                            document.addEventListener('submit', function(event) {
+                                const form = event.target;
+                                if (form && form.action) {
+                                    console.log('Form submitted:', form.action);
+                                    
+                                    if (isInternal(form.action)) {
+                                        event.preventDefault();
+                                        const url = new URL(form.action);
+                                        const path = url.pathname + url.search;
+                                        navigateToPath(path);
+                                    }
+                                }
+                            });
 
-                            window.location.replace = function(url) {
-                                window.location.href = url;
-                            };
+                            // Override location methods (simplified)
+                            const originalLocation = window.location;
+                            try {
+                                Object.defineProperty(window, 'location', {
+                                    get: function() { return originalLocation; },
+                                    set: function(value) {
+                                        if (value && typeof value === 'string') {
+                                            if (isInternal(value)) {
+                                                navigateToPath(value);
+                                            } else {
+                                                originalLocation.href = value;
+                                            }
+                                        }
+                                    }
+                                });
+                            } catch (e) {
+                                console.warn('Could not override location object:', e);
+                            }
+
+                            console.log('Navigation script initialized');
                         })();
                     </script>
                 `;
@@ -360,6 +441,12 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
     };
   }, [iframeSrc, fileUrls, onNavigate]);
 
+  const handleOpenInNewTab = () => {
+    if (iframeSrc) {
+      window.open(iframeSrc, '_blank');
+    }
+  };
+
   return (
     <div className="w-full h-full bg-var-bg-muted flex flex-col">
       <div className="flex items-center p-2 bg-var-bg-subtle border-b border-var-border-muted">
@@ -373,6 +460,14 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
             aria-label="URL de visualização local"
           />
         </div>
+        <button
+          onClick={handleOpenInNewTab}
+          className="ml-2 p-1.5 rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors"
+          title="Abrir em nova guia"
+          aria-label="Abrir em nova guia"
+        >
+          <ExternalLinkIcon className="w-4 h-4" />
+        </button>
       </div>
       <div className="flex-1 w-full h-full">
         {iframeSrc === undefined && (
@@ -386,8 +481,9 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
             key={iframeSrc}
             src={iframeSrc}
             title="Project Preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation-by-user-activation"
             className="w-full h-full border-0"
+            allow="accelerometer; autoplay; camera; clipboard-read; clipboard-write; encrypted-media; gyroscope; microphone; midi; payment; picture-in-picture; publickey-credentials-get; sync-xhr; usb; web-share; xr-spatial-tracking"
           />
         )}
       </div>

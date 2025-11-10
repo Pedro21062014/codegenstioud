@@ -409,7 +409,15 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
 
         {viewMode === 'preview' && (
           <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh}>
-            <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} onNavigate={setPreviewUrl} />
+            <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} onNavigate={(path) => {
+              setPreviewUrl(path);
+              // Update the active file if navigating to an HTML file
+              const fileName = path.startsWith('/') ? path.substring(1) : path;
+              const htmlFile = files.find(f => f.name === fileName);
+              if (htmlFile) {
+                onFileSelect(fileName);
+              }
+            }} />
           </BrowserFrame>
         )}
 

@@ -14,7 +14,7 @@ const testApiKey = async (key: string): Promise<{ success: boolean; message: str
     if (!key) return { success: false, message: 'A chave não pode estar em branco.' };
     try {
         const ai = new GoogleGenAI({ apiKey: key });
-        const response = await ai.models.generateContent({ model: 'gemini-1.5-flash', contents: 'diga "ok"' });
+        const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: 'diga "ok"' });
         if (response.text.trim().toLowerCase() === 'ok') {
             return { success: true, message: 'Conexão bem-sucedida!' };
         }
@@ -85,7 +85,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-var-fg-default">Configurações</h2>
-          <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive">
+          <button onClick={onClose} className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive" aria-label="Fechar configurações">
             <CloseIcon />
           </button>
         </div>
@@ -141,6 +141,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                     onClick={handleGeminiTest}
                     disabled={geminiTestStatus.status === 'testing' || !geminiKey}
                     className="px-3 py-2 text-xs font-medium text-var-fg-default bg-var-bg-interactive border border-var-border-default rounded-md hover:bg-var-bg-default disabled:opacity-50 disabled:cursor-wait"
+                    aria-label="Testar chave de API do Gemini"
                   >
                     {geminiTestStatus.status === 'testing' ? '...' : 'Testar'}
                   </button>
