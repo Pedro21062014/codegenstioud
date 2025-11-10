@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+<link rel="icon" type="image/png" href="components/models image/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codagem Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script defer src="https://js.stripe.com/v3/"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --font-sans: 'Inter', sans-serif;
+
+        /* Light Theme */
+        --bg-default-light: #f8f9fa;
+        --bg-subtle-light: #ffffff;
+        --bg-muted-light: #f1f3f5;
+        --bg-interactive-light: #e9ecef;
+        --fg-default-light: #212529;
+        --fg-muted-light: #495057;
+        --fg-subtle-light: #868e96;
+        --border-default-light: #dee2e6;
+        --border-subtle-light: #e9ecef;
+        --accent-light: #1c7ed6;
+        --accent-fg-light: #ffffff;
+        --shadow-color-light: 220, 13%, 69%;
+
+        /* Dark Theme */
+        --bg-default-dark: #0d1117;
+        --bg-subtle-dark: #161b22;
+        --bg-muted-dark: #010409;
+        --bg-interactive-dark: #21262d;
+        --fg-default-dark: #c9d1d9;
+        --fg-muted-dark: #8b949e;
+        --fg-subtle-dark: #484f58;
+        --border-default-dark: #30363d;
+        --border-subtle-dark: #21262d;
+        --accent-dark: #58a6ff;
+        --accent-fg-dark: #ffffff;
+        --shadow-color-dark: 216, 28%, 7%;
+      }
+
+      /* Base styles applying CSS variables */
+      body {
+        font-family: var(--font-sans);
+        background-color: var(--bg-default);
+        color: var(--fg-default);
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      
+      /* Theme class definitions */
+      .light {
+        --bg-default: var(--bg-default-light);
+        --bg-subtle: var(--bg-subtle-light);
+        --bg-muted: var(--bg-muted-light);
+        --bg-interactive: var(--bg-interactive-light);
+        --fg-default: var(--fg-default-light);
+        --fg-muted: var(--fg-muted-light);
+        --fg-subtle: var(--fg-subtle-light);
+        --border-default: var(--border-default-light);
+        --border-subtle: var(--border-subtle-light);
+        --accent: var(--accent-light);
+        --accent-fg: var(--accent-fg-light);
+        --shadow-color: var(--shadow-color-light);
+      }
+
+      .dark {
+        --bg-default: var(--bg-default-dark);
+        --bg-subtle: var(--bg-subtle-dark);
+        --bg-muted: var(--bg-muted-dark);
+        --bg-interactive: var(--bg-interactive-dark);
+        --fg-default: var(--fg-default-dark);
+        --fg-muted: var(--fg-muted-dark);
+        --fg-subtle: var(--fg-subtle-dark);
+        --border-default: var(--border-default-dark);
+        --border-subtle-dark: var(--border-subtle-dark);
+        --accent: var(--accent-dark);
+        --accent-fg: var(--accent-fg-dark);
+        --shadow-color: var(--shadow-color-dark);
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-subtle);
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: var(--fg-subtle);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--fg-muted);
+      }
+
+      /* Keyframes for animations */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes slideInUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      @keyframes slideInLeft {
+        from { transform: translateX(-20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes slideInRight {
+        from { transform: translateX(20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
+      }
+      @keyframes rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes scale {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        20%, 40%, 60%, 80% { transform: translateX(5px); }
+      }
+      @keyframes glow {
+        0%, 100% { box-shadow: 0 0 5px rgba(88, 166, 255, 0.5); }
+        50% { box-shadow: 0 0 20px rgba(88, 166, 255, 0.8), 0 0 30px rgba(88, 166, 255, 0.6); }
+      }
+       @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      @keyframes wiggle {
+        0%, 100% { transform: rotate(0deg); }
+        25% { transform: rotate(-3deg); }
+        75% { transform: rotate(3deg); }
+      }
+
+      /* Animation classes */
+      .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+      .animate-slideInUp { animation: slideInUp 0.3s ease-out; }
+      .animate-slideInLeft { animation: slideInLeft 0.3s ease-out; }
+      .animate-slideInRight { animation: slideInRight 0.3s ease-out; }
+      .animate-bounce { animation: bounce 1s infinite; }
+      .animate-rotate { animation: rotate 1s linear infinite; }
+      .animate-scale { animation: scale 0.3s ease-out; }
+      .animate-shake { animation: shake 0.5s ease-in-out; }
+      .animate-glow { animation: glow 2s ease-in-out infinite; }
+      .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+      .animate-float { animation: float 3s ease-in-out infinite; }
+      .animate-wiggle { animation: wiggle 1s ease-in-out infinite; }
+
+      /* Hover effects */
+      .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+      .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+
+      .hover-scale { transition: transform 0.2s ease; }
+      .hover-scale:hover { transform: scale(1.05); }
+
+      .hover-rotate { transition: transform 0.2s ease; }
+      .hover-rotate:hover { transform: rotate(5deg); }
+
+      .hover-glow { transition: box-shadow 0.3s ease; }
+      .hover-glow:hover { box-shadow: 0 0 20px rgba(88, 166, 255, 0.4); }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.44.4",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "@supabase/auth-helpers-react": "https://aistudiocdn.com/@supabase/auth-helpers-react@^0.5.0"
+  }
+}
+</script>
+
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
