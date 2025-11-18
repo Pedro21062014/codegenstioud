@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { firebaseService } from '../services/firebase';
+import { supabase } from '../services/supabase';
 import { CloseIcon, AppLogo, GoogleIcon } from './Icons';
 
 interface AuthModalProps {
@@ -24,28 +24,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     try {
       if (isLoginView) {
         console.log('🔐 Tentando login com email:', email);
-        const result = await firebaseService.auth.signIn(email, password);
-        console.log('📥 Resposta do login:', result);
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        console.log('📥 Resposta do login:', { data, error });
         
-        if (!result.success) {
-          console.error('❌ Erro de login:', result.error);
-          throw new Error(result.error);
+        if (error) {
+          console.error('❌ Erro de login:', error);
+          throw error;
         }
         
         console.log('✅ Login bem-sucedido!');
         onClose();
       } else {
         console.log('📝 Tentando registrar com email:', email);
-        // Firebase não tem signup direto no cliente web para email/senha
-        // Precisa usar Firebase Functions ou criar usuário manualmente no console
-        // Por enquanto, vamos mostrar mensagem para criar usuário no console
-        setMessage('Para registrar, peça ao administrador criar sua conta no Firebase Console ou use uma conta existente.');
+        const { data, error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}`
+          }
+        });
+        console.log('📥 Resposta do signup:', { data, error });
+        
+        if (error) {
+          console.error('❌ Erro de registro:', error);
+          throw error;
+        }
+        
+        console.log('✅ Registro bem-sucedido!');
+        setMessage('Verifique seu e-mail para o link de confirmação!');
         setEmail('');
         setPassword('');
       }
     } catch (err: any) {
       console.error('💥 Erro na autenticação:', err);
-      const errorMsg = err.message || 'Erro desconhecido';
+      const errorMsg = err.error_description || err.message || 'Erro desconhecido';
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -55,10 +67,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    // Firebase Google OAuth precisa ser configurado separadamente
-    // Por enquanto, mostrar mensagem
-    setError('Login com Google será implementado em breve. Use email e senha.');
-    setLoading(false);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    }
+    // On success, Supabase handles the redirect.
   };
 
   React.useEffect(() => {

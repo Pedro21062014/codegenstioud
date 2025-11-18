@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppLogo, FileIcon, CubeIcon, SettingsIcon, DownloadIcon, CloseIcon, GithubIcon, LogInIcon, LogOutIcon, SaveIcon, ProjectsIcon, ImageIcon, ShieldIcon, TrashIcon, EditIcon, MapIcon, DatabaseIcon } from './Icons';
 import { IntegrationProvider, ProjectFile } from '../types';
-import type { User } from 'firebase/auth';
+import type { Session } from '@supabase/supabase-js';
 
 import cloudImage from './models image/cloud.png';
 import firebaseImage from './models image/firebase.png';
@@ -30,7 +30,7 @@ interface SidebarProps {
   onOpenGoogleCloudModal: () => void;
   activeFile: string | null;
   onClose?: () => void;
-  session: User | null;
+  session: Session | null;
   onLogin: () => void;
   onLogout: () => void;
 }
@@ -266,8 +266,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </Tooltip>
                 {session ? (
-                    <Tooltip text={`Sair (${session.email})`}>
-                        <button type="button" aria-label={`Sair (${session.email})`} onClick={onLogout} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                    <Tooltip text={`Sair (${session.user.email})`}>
+                        <button type="button" aria-label={`Sair (${session.user.email})`} onClick={onLogout} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                             <LogOutIcon />
                         </button>
                     </Tooltip>
@@ -351,7 +351,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             Conectar
                         </button>
                     </div>
-                    <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
+                     <div className="bg-var-bg-interactive p-3 rounded-lg border border-var-border-default">
                         <div className="flex items-center gap-3 mb-2">
                             <img src={supabaseImage} alt="Supabase" className="w-6 h-6" />
                             <h3 className="font-semibold text-var-fg-default">Supabase</h3>
