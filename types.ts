@@ -8,6 +8,7 @@ export enum AIProvider {
 export enum IntegrationProvider {
   GitHub = 'GitHub',
   Supabase = 'Supabase',
+  Firebase = 'Firebase',
   Stripe = 'Stripe',
   OpenStreetMap = 'OpenStreetMap',
   Neon = 'Neon',
@@ -43,9 +44,9 @@ export interface ChatMessage {
   fromCache?: boolean;
 }
 
-// UserSettings agora reflete a estrutura da tabela 'profiles' do Supabase
+// UserSettings agora reflete a estrutura da coleção 'profiles' do Firebase
 export interface UserSettings {
-  id: string; // Corresponde a auth.users.id
+  id: string; // Corresponde a auth.users.uid
   updated_at?: string;
   gemini_api_key?: string;
   github_access_token?: string;
@@ -64,9 +65,9 @@ export interface UserSettings {
 
 export type Theme = 'light' | 'dark';
 
-// SavedProject agora reflete a estrutura da tabela 'projects' do Supabase
+// SavedProject agora reflete a estrutura da coleção 'projects' do Firebase
 export interface SavedProject {
-  id: number;
+  id: string; // Firebase usa string para IDs
   user_id: string;
   name: string;
   files: ProjectFile[];

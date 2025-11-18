@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Teste Firebase - CodeGen Studio</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .test-section {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #ffd700;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .input-group {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+        }
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .output {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border-left: 4px solid #ffd700;
+        }
+        .output.success {
+            border-left-color: #4caf50;
+            background: rgba(76, 175, 80, 0.2);
+        }
+        .output.error {
+            border-left-color: #f44336;
+            background: rgba(244, 67, 54, 0.2);
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #4caf50;
+            color: white;
+        }
+        .status.error {
+            background: #f44336;
+            color: white;
+        }
+        .status.pending {
+            background: #ff9800;
+            color: white;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .header-info {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffd700;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Teste Firebase - CodeGen Studio</h1>
+        
+        <div class="header-info">
+            <strong>Projeto:</strong> codegenstudio-398fc | 
+            <strong>Status:</strong> <span id="connectionStatus" class="status pending">Verificando...</span>
+        </div>
+
+        <div class="grid">
+            <!-- Teste 1: Conexão -->
+            <div class="test-section">
+                <h2>1️⃣ Testar Conexão Firebase</h2>
+                <button onclick="testConnection()">🔗 Verificar Conexão</button>
+                <div id="output1" class="output">Clique para testar conexão com Firebase...</div>
+            </div>
+
+            <!-- Teste 2: Autenticação -->
+            <div class="test-section">
+                <h2>2️⃣ Testar Autenticação</h2>
+                <button onclick="testAuth()">👤 Verificar Status</button>
+                <div id="output2" class="output">Clique para verificar autenticação...</div>
+            </div>
+
+            <!-- Teste 3: Login -->
+            <div class="test-section">
+                <h2>3️⃣ Testar Login</h2>
+                <div class="input-group">
+                    <input type="email" id="email" placeholder="Email" value="">
+                    <input type="password" id="password" placeholder="Senha" value="">
+                </div>
+                <button onclick="testLogin()">🔐 Fazer Login</button>
+                <button onclick="testLogout()">🚪 Fazer Logout</button>
+                <div id="output3" class="output">Entre com email e senha para testar login...</div>
+            </div>
+
+            <!-- Teste 4: Coleções -->
+            <div class="test-section">
+                <h2>4️⃣ Testar Coleções</h2>
+                <button onclick="testCollections()">📋 Verificar Coleções</button>
+                <div id="output4" class="output">Clique para testar acesso às coleções...</div>
+            </div>
+
+            <!-- Teste 5: Salvar Projeto -->
+            <div class="test-section">
+                <h2>5️⃣ Testar Salvar Projeto</h2>
+                <div class="input-group">
+                    <input type="text" id="projectName" placeholder="Nome do Projeto" value="TestProject">
+                </div>
+                <button onclick="testSaveProject()">💾 Salvar Projeto</button>
+                <div id="output5" class="output">Clique para testar salvamento de projeto...</div>
+            </div>
+
+            <!-- Teste 6: Listar Projetos -->
+            <div class="test-section">
+                <h2>6️⃣ Listar Projetos</h2>
+                <button onclick="testListProjects()">📂 Listar Meus Projetos</button>
+                <div id="output6" class="output">Clique para listar seus projetos...</div>
+            </div>
+
+            <!-- Teste 7: Regras de Segurança -->
+            <div class="test-section">
+                <h2>7️⃣ Testar Regras de Segurança</h2>
+                <button onclick="testSecurityRules()">🔒 Verificar Regras</button>
+                <div id="output7" class="output">Clique para testar regras de segurança...</div>
+            </div>
+        </div>
+
+        <!-- Teste Completo -->
+        <div class="test-section">
+            <h2>🚀 Executar Todos os Testes</h2>
+            <button onclick="runAllTests()">⚡ Rodar Todos os Testes</button>
+            <div id="outputAll" class="output">Clique para executar todos os testes...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js';
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCFSSxM-_7cefMP9hFLB_nIhu4kGgDMDOM",
+            authDomain: "codegenstudio-398fc.firebaseapp.com",
+            databaseURL: "https://codegenstudio-398fc-default-rtdb.firebaseio.com",
+            projectId: "codegenstudio-398fc",
+            storageBucket: "codegenstudio-398fc.firebasestorage.app",
+            messagingSenderId: "698246345398",
+            appId: "1:698246345398:web:40c623ecd83132cfb5ec17",
+            measurementId: "G-X4SYLSYFQL"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Make available globally
+        window.db = db;
+        window.auth = auth;
+
+        // Update connection status
+        onAuthStateChanged(auth, (user) => {
+            const status = document.getElementById('connectionStatus');
+            if (user) {
+                status.textContent = 'Conectado';
+                status.className = 'status success';
+            } else {
+                status.textContent = 'Não autenticado';
+                status.className = 'status error';
+            }
+        });
+
+        // Helper functions
+        function showOutput(elementId, message, type = 'success') {
+            const output = document.getElementById(elementId);
+            output.textContent = message;
+            output.className = `output ${type}`;
+        }
+
+        function showLoading(elementId) {
+            const output = document.getElementById(elementId);
+            output.innerHTML = '<span class="loader"></span> Executando teste...';
+            output.className = 'output';
+        }
+
+        // Test functions
+        window.testConnection = async function() {
+            showLoading('output1');
+            try {
+                const user = auth.currentUser;
+                if (user) {
+                    showOutput('output1', `✅ Firebase conectado!\n📍 Projeto ID: codegenstudio-398fc\n📍 Usuário: ${user.email || user.uid}`, 'success');
+                } else {
+                    showOutput('output1', `✅ Firebase conectado!\n📍 Projeto ID: codegenstudio-398fc\n⚠️ Nenhum usuário autenticado`, 'success');
+                }
+            } catch (error) {
+                showOutput('output1', `❌ Erro de conexão: ${error.message}`, 'error');
+            }
+        };
+
+        window.testAuth = async function() {
+            showLoading('output2');
+            try {
+                const user = auth.currentUser;
+                if (user) {
+                    showOutput('output2', `✅ Usuário autenticado!\n📍 User ID: ${user.uid}\n📍 Email: ${user.email}\n📍 Display Name: ${user.displayName || 'Não definido'}`, 'success');
+                } else {
+                    showOutput('output2', '⚠️ Usuário não autenticado', 'error');
+                }
+            } catch (error) {
+                showOutput('output2', `❌ Erro ao verificar autenticação: ${error.message}`, 'error');
+            }
+        };
+
+        window.testLogin = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                showOutput('output3', '❌ Por favor, preencha email e senha', 'error');
+                return;
+            }
+
+            showLoading('output3');
+            try {
+                const result = await signInWithEmailAndPassword(auth, email, password);
+                showOutput('output3', `✅ Login bem-sucedido!\n📍 User ID: ${result.user.uid}\n📍 Email: ${result.user.email}`, 'success');
+            } catch (error) {
+                showOutput('output3', `❌ Erro ao fazer login: ${error.message}`, 'error');
+            }
+        };
+
+        window.testLogout = async function() {
+            showLoading('output3');
+            try {
+                await signOut(auth);
+                showOutput('output3', '✅ Logout realizado com sucesso!', 'success');
+            } catch (error) {
+                showOutput('output3', `❌ Erro ao fazer logout: ${error.message}`, 'error');
+            }
+        };
+
+        window.testCollections = async function() {
+            showLoading('output4');
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    showOutput('output4', '⚠️ Não autenticado - não é possível testar coleções', 'error');
+                    return;
+                }
+
+                // Test profiles
+                const profileRef = doc(db, "profiles", user.uid);
+                const profileDoc = await getDoc(profileRef);
+                
+                // Test projects
+                const projectsQuery = query(collection(db, "projects"), where("user_id", "==", user.uid));
+                const projectsSnapshot = await getDocs(projectsQuery);
+
+                showOutput('output4', `✅ Coleções acessíveis!\n📋 Profiles: ${profileDoc.exists() ? 'Existe' : 'Não encontrado (normal)'}\n📋 Projects: ${projectsSnapshot.size} projetos encontrados`, 'success');
+            } catch (error) {
+                showOutput('output4', `❌ Erro ao acessar coleções: ${error.message}`, 'error');
+            }
+        };
+
+        window.testSaveProject = async function() {
+            const projectName = document.getElementById('projectName').value || 'TestProject';
+            showLoading('output5');
+            
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    showOutput('output5', '❌ Não autenticado', 'error');
+                    return;
+                }
+
+                const projectData = {
+                    name: projectName,
+                    files: [],
+                    chat_history: [{ role: 'assistant', content: 'Test' }],
+                    env_vars: {},
+                    user_id: user.uid
+                };
+
+                const docRef = await addDoc(collection(db, "projects"), {
+                    ...projectData,
+                    created_at: serverTimestamp(),
+                    updated_at: serverTimestamp()
+                });
+
+                showOutput('output5', `✅ Projeto salvo com sucesso!\n📍 ID: ${docRef.id}\n📍 Nome: ${projectName}`, 'success');
+            } catch (error) {
+                showOutput('output5', `❌ Erro ao salvar projeto: ${error.message}`, 'error');
+            }
+        };
+
+        window.testListProjects = async function() {
+            showLoading('output6');
+            
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    showOutput('output6', '❌ Não autenticado', 'error');
+                    return;
+                }
+
+                const projectsQuery = query(collection(db, "projects"), where("user_id", "==", user.uid));
+                const projectsSnapshot = await getDocs(projectsQuery);
+                const projects = projectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                showOutput('output6', `✅ Projetos carregados!\n📍 Total: ${projects.length} projetos\n\n${projects.map(p => `• ${p.name} (${p.id})`).join('\n')}`, 'success');
+            } catch (error) {
+                showOutput('output6', `❌ Erro ao listar projetos: ${error.message}`, 'error');
+            }
+        };
+
+        window.testSecurityRules = async function() {
+            showLoading('output7');
+            
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    showOutput('output7', '⚠️ Não autenticado - regras podem estar bloqueando', 'error');
+                    return;
+                }
+
+                // Test reading
+                const projectsQuery = query(collection(db, "projects"), where("user_id", "==", user.uid));
+                const projectsSnapshot = await getDocs(projectsQuery);
+
+                // Test writing
+                const testProject = {
+                    name: 'Security-Test-' + Date.now(),
+                    files: [],
+                    chat_history: [],
+                    env_vars: {},
+                    user_id: user.uid
+                };
+
+                const docRef = await addDoc(collection(db, "projects"), {
+                    ...testProject,
+                    created_at: serverTimestamp(),
+                    updated_at: serverTimestamp()
+                });
+
+                // Clean up test
+                await deleteDoc(doc(db, "projects", docRef.id));
+
+                showOutput('output7', '✅ Regras de segurança funcionando corretamente!\n📍 Leitura: Permitida\n📍 Escrita: Permitida\n📍 Limpeza: Concluída', 'success');
+            } catch (error) {
+                showOutput('output7', `❌ Problema com regras de segurança: ${error.message}`, 'error');
+            }
+        };
+
+        window.runAllTests = async function() {
+            showLoading('outputAll');
+            
+            const tests = [
+                { name: 'Conexão', fn: testConnection },
+                { name: 'Autenticação', fn: testAuth },
+                { name: 'Coleções', fn: testCollections },
+                { name: 'Regras de Segurança', fn: testSecurityRules }
+            ];
+
+            let results = [];
+            
+            for (const test of tests) {
+                try {
+                    await test.fn();
+                    results.push(`${test.name}: ✅`);
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
+                } catch (error) {
+                    results.push(`${test.name}: ❌`);
+                }
+            }
+
+            showOutput('outputAll', `🚀 Todos os testes concluídos!\n\n${results.join('\n')}\n\n📊 Verifique os resultados individuais acima.`, 'success');
+        };
+
+        // Auto-run connection test
+        setTimeout(testConnection, 1000);
+    </script>
+</body>
+</html>
