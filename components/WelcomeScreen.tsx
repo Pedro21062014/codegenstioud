@@ -15,6 +15,7 @@ const APP_TYPES: { id: AppType; name: string }[] = [
   { id: 'nextjs', name: 'Next.js' },
   { id: 'chrome-extension', name: 'Extensão para Chrome' },
   { id: 'vscode-extension', name: 'Extensão para VS Code' },
+  { id: 'desktop', name: 'Aplicativo para Computador' },
 ];
 
 interface WelcomeScreenProps {

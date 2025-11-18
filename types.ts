@@ -19,7 +19,7 @@ export enum AIMode {
   Agent = 'agent',
 }
 
-export type AppType = 'auto' | 'react-vite' | 'html-css-js' | 'angular' | 'nextjs' | 'chrome-extension' | 'vscode-extension';
+export type AppType = 'auto' | 'react-vite' | 'html-css-js' | 'angular' | 'nextjs' | 'chrome-extension' | 'vscode-extension' | 'desktop';
 
 export type GenerationMode = 'full' | 'quick';
 

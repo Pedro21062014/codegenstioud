@@ -185,6 +185,7 @@ interface ProjectState {
   projectName: string;
   envVars: Record<string, string>;
   currentProjectId: number | null; // Database ID
+  appType: AppType; // Add appType to track project type
 }
 
 const initialProjectState: ProjectState = {
@@ -194,6 +195,7 @@ const initialProjectState: ProjectState = {
   projectName: 'NovoProjeto',
   envVars: {},
   currentProjectId: null,
+  appType: 'auto',
 };
 
 
@@ -697,7 +699,7 @@ const App: React.FC = () => {
     const thinkingMessage: ChatMessage = { role: 'assistant', content: 'Pensando...', isThinking: true };
     
     const newChatHistory = view !== 'editor' ? [userMessage, thinkingMessage] : [...project.chatMessages, userMessage, thinkingMessage];
-    setProject(p => ({ ...p, chatMessages: newChatHistory }));
+    setProject(p => ({ ...p, chatMessages: newChatHistory, appType: appType }));
 
     if (view !== 'editor') {
       setView('editor');
@@ -707,7 +709,7 @@ const App: React.FC = () => {
       setIsInitializing(true);
       setGeneratingFile('Analisando o prompt...');
       const newName = await generateProjectName(currentPrompt, effectiveGeminiApiKey); // Use currentPrompt
-      setProject(p => ({...p, projectName: newName}));
+      setProject(p => ({...p, projectName: newName, appType: appType}));
       setGeneratingFile('Preparando para gerar arquivos...');
     }
 
@@ -1066,9 +1068,21 @@ const App: React.FC = () => {
     setLocalRunModalOpen(true);
   }, [project]);
 
-  const handleDownload = useCallback(() => {
-    downloadProjectAsZip(project.files, project.projectName);
-  }, [project.files, project.projectName]);
+  const handleDownload = useCallback(async () => {
+    if (project.appType === 'desktop') {
+      const { downloadDesktopApp } = await import('./services/projectService');
+      downloadDesktopApp(project.files, project.projectName);
+    } else {
+      downloadProjectAsZip(project.files, project.projectName);
+    }
+  }, [project.files, project.projectName, project.appType]);
+
+  const handleDownloadExe = useCallback(async () => {
+    if (project.appType === 'desktop') {
+      const { createDesktopExe } = await import('./services/projectService');
+      createDesktopExe(project.files, project.projectName);
+    }
+  }, [project.files, project.projectName, project.appType]);
 
   const handleProjectImport = useCallback((importedFiles: ProjectFile[]) => {
     const htmlFile = importedFiles.find(f => f.name.endsWith('index.html')) || importedFiles[0];
@@ -1317,7 +1331,10 @@ const App: React.FC = () => {
         isOpen={isLocalRunModalOpen}
         onClose={() => setLocalRunModalOpen(false)}
         onDownload={handleDownload}
+        onDownloadExe={project.appType === 'desktop' ? handleDownloadExe : undefined}
         projectName={projectName}
+        projectSize={projectSize}
+        appType={project.appType}
       />
 
       <GoogleCloudModal
