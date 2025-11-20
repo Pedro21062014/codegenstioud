@@ -3,6 +3,7 @@ import { AppLogo, FileIcon, CubeIcon, SettingsIcon, DownloadIcon, CloseIcon, Git
 import { IntegrationProvider, ProjectFile } from '../types';
 import type { Session } from '@supabase/supabase-js';
 import { getFileIcon } from './FileIconHelper';
+import { FileTree } from './FileTree';
 
 import cloudImage from './models image/cloud.png';
 import firebaseImage from './models image/firebase.png';
@@ -72,8 +73,8 @@ const ContextMenu: React.FC<{
                             onClose();
                         }}
                         className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors ${action.isDestructive
-                                ? 'text-red-400 hover:bg-red-500/10'
-                                : 'text-var-fg-default hover:bg-var-bg-interactive'
+                            ? 'text-red-400 hover:bg-red-500/10'
+                            : 'text-var-fg-default hover:bg-var-bg-interactive'
                             }`}
                     >
                         {action.icon}
@@ -302,39 +303,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 {activeTab === 'files' && (
-                    <ul className="mt-2 space-y-1 p-2 overflow-y-auto">
-                        {files.map(file => (
-                            <li key={file.name}>
-                                <button
-                                    type="button"
-                                    onClick={() => onFileSelect(file.name)}
-                                    onContextMenu={(e) => handleContextMenu(e, file)}
-                                    className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors ${activeFile === file.name ? 'bg-var-accent/20 text-var-accent' : 'text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default'
-                                        }`}
-                                >
-                                    {renamingFile === file.name ? (
-                                        <input
-                                            ref={renameInputRef}
-                                            type="text"
-                                            defaultValue={file.name}
-                                            aria-label="Renomear arquivo"
-                                            className="bg-var-bg-default w-full text-var-fg-default text-sm outline-none ring-1 ring-var-accent"
-                                            onBlur={(e) => handleRename(file.name, e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') handleRename(file.name, e.currentTarget.value);
-                                                if (e.key === 'Escape') setRenamingFile(null);
-                                            }}
-                                        />
-                                    ) : (
-                                        <>
-                                            {getFileIcon(file.name, "w-4 h-4 flex-shrink-0")}
-                                            <span className="truncate">{file.name}</span>
-                                        </>
-                                    )}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="mt-2 p-2 overflow-y-auto">
+                        <FileTree
+                            files={files}
+                            activeFile={activeFile}
+                            onFileSelect={onFileSelect}
+                            onRenameFile={onRenameFile}
+                            onDeleteFile={onDeleteFile}
+                        />
+                    </div>
                 )}
                 {activeTab === 'environment' && (
                     <EnvironmentPanel vars={envVars} onSave={onEnvVarChange} />

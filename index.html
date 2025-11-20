@@ -100,6 +100,16 @@
         background-color: var(--fg-muted);
       }
 
+      /* Thin scrollbar utility */
+      .scrollbar-thin::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-thumb {
+        background-color: var(--fg-subtle);
+        border-radius: 2px;
+      }
+
       /* Keyframes for animations */
       @keyframes fadeIn {
         from { opacity: 0; }

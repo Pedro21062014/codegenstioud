@@ -333,7 +333,7 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
       />
 
       <div className="flex items-center justify-between border-b border-var-border-default bg-var-bg-muted flex-shrink-0">
-        <div className="flex-grow flex-shrink overflow-x-auto overflow-y-hidden">
+        <div className="flex-1 min-w-0 overflow-x-auto scrollbar-thin">
           <div className="flex">
             {files.map(file => (
               <button

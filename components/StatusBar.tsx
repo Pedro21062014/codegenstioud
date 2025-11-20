@@ -54,56 +54,52 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     isModified = false
 }) => {
     return (
-        <div className="h-6 bg-var-bg-muted border-t border-var-border-default flex items-center justify-between px-3 text-xs text-var-fg-muted flex-shrink-0">
+        <div className="h-6 bg-var-bg-muted border-t border-var-border-default flex items-center justify-between px-3 text-xs text-var-fg-muted flex-shrink-0 overflow-hidden">
             {/* Left side - File info */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 min-w-0 flex-1">
                 {activeFile ? (
                     <>
-                        <div className="flex items-center gap-2">
-                            <span className="font-medium text-var-fg-default">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-medium text-var-fg-default truncate">
                                 {activeFile.name}
                             </span>
                             {isModified && (
-                                <span className="w-2 h-2 rounded-full bg-var-accent animate-pulse" title="Arquivo modificado"></span>
+                                <span className="w-2 h-2 rounded-full bg-var-accent animate-pulse flex-shrink-0" title="Arquivo modificado"></span>
                             )}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
                             <span className="text-var-fg-subtle">Tipo:</span>
-                            <span>{getFileLanguage(activeFile.name)}</span>
+                            <span className="truncate">{getFileLanguage(activeFile.name)}</span>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="hidden md:flex items-center gap-1 flex-shrink-0">
                             <span className="text-var-fg-subtle">Linhas:</span>
                             <span>{getLineCount(activeFile.content)}</span>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
                             <span className="text-var-fg-subtle">Tamanho:</span>
                             <span>{getFileSize(activeFile.content)}</span>
                         </div>
                     </>
                 ) : (
-                    <span>Nenhum arquivo aberto</span>
+                    <span className="truncate">Nenhum arquivo aberto</span>
                 )}
             </div>
 
             {/* Right side - Cursor position and project info */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-shrink-0">
                 {cursorPosition && (
-                    <div className="flex items-center gap-1">
+                    <div className="hidden sm:flex items-center gap-1">
                         <span className="text-var-fg-subtle">Ln</span>
                         <span className="font-mono">{cursorPosition.line}</span>
                         <span className="text-var-fg-subtle">, Col</span>
                         <span className="font-mono">{cursorPosition.column}</span>
                     </div>
                 )}
-                <div className="flex items-center gap-1">
+                <div className="hidden md:flex items-center gap-1">
                     <span className="text-var-fg-subtle">Arquivos:</span>
                     <span>{totalFiles}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <span className="text-var-fg-subtle">Projeto:</span>
-                    <span>{projectSize}</span>
-                </div>
-                <div className="flex items-center gap-1">
+                <div className="hidden lg:flex items-center gap-1">
                     <span className="text-var-fg-subtle">UTF-8</span>
                 </div>
             </div>
