@@ -38,6 +38,7 @@ import geminiImage from './components/models image/gemini.png'; // Import the im
 import openrouterImage from './components/models image/openrouter.png'; // Import the OpenRouter image
 import { debugService } from './services/debugService';
 import { LocalStorageService } from './services/localStorageService';
+import { MigrationService } from './services/migrationService';
 
 // Make debugService available in console for testing
 if (typeof window !== 'undefined') {
@@ -80,7 +81,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, onToggle
       </button>
       <div className="flex items-center gap-2">
         <h1 className="text-sm font-semibold text-var-fg-default truncate">{projectName}</h1>
-        <button 
+        <button
           onClick={onToggleVersionModal}
           className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive"
           aria-label="Ver histórico de versões"
@@ -139,18 +140,18 @@ const InitializingOverlay: React.FC<{ projectName: string; generatingFile: strin
       <AppLogo className="w-12 h-12 text-var-accent animate-pulse" style={{ animationDuration: '2s' }} />
       <h2 className="mt-4 text-2xl font-bold">Gerando seu novo projeto...</h2>
       <p className="text-lg text-var-fg-muted">{projectName}</p>
-      
+
       <div className="mt-8 text-center space-y-4">
-          <div>
-              <p className="text-sm text-var-fg-subtle">Criando arquivo:</p>
-              <p className="text-base font-mono text-var-fg-default bg-black px-3 py-1.5 rounded-md inline-block min-w-[220px] text-center transition-all duration-300">
-                {generatingFile}
-              </p>
-          </div>
-          <div>
-              <p className="text-sm text-var-fg-subtle">Tempo estimado restante:</p>
-              <p className="text-base font-semibold text-var-fg-default">{Math.ceil(timeLeft)} segundos</p>
-          </div>
+        <div>
+          <p className="text-sm text-var-fg-subtle">Criando arquivo:</p>
+          <p className="text-base font-mono text-var-fg-default bg-black px-3 py-1.5 rounded-md inline-block min-w-[220px] text-center transition-all duration-300">
+            {generatingFile}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm text-var-fg-subtle">Tempo estimado restante:</p>
+          <p className="text-base font-semibold text-var-fg-default">{Math.ceil(timeLeft)} segundos</p>
+        </div>
       </div>
     </div>
   );
@@ -203,7 +204,7 @@ const App: React.FC = () => {
   const [project, setProject] = useLocalStorage<ProjectState>('codegen-studio-project', initialProjectState);
   const { files, activeFile, chatMessages, projectName, envVars, currentProjectId } = project;
   const [projectSize, setProjectSize] = useState<number>(0);
-  
+
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects'>();
 
@@ -223,11 +224,11 @@ const App: React.FC = () => {
   const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
   const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
   const [isVersionModalOpen, setVersionModalOpen] = useState(false);
-  
+
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useState<boolean>(() => LocalStorageService.getIsProUser());
   const [theme, setTheme] = useState<Theme>(() => LocalStorageService.getTheme());
-  const [pendingPrompt, setPendingPrompt] = useState<{prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType, generationMode: GenerationMode } | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<{ prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[], appType: AppType, generationMode: GenerationMode } | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [generatingFile, setGeneratingFile] = useState<string>('Preparando...');
 
@@ -277,58 +278,68 @@ const App: React.FC = () => {
   // --- Data Fetching and Auth ---
   const fetchUserData = useCallback(async (user: User) => {
     try {
-      // Para usuários Pro, carregar do Supabase
-      if (isProUser) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means "no rows found"
-          console.error("Error fetching profile data:", profileError);
-          throw profileError;
-        }
-        setUserSettings(profileData || null); // Ensure userSettings is null if no profile found
+      console.log('📊 Carregando dados do usuário:', user.id);
 
-        const { data: projectsData, error: projectsError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('user_id', user.id);
-        
-        if (projectsError) {
-          console.error("Error fetching projects data:", projectsError);
-          throw projectsError;
+      // Verificar se há dados locais para migrar
+      if (MigrationService.hasLocalDataToMigrate()) {
+        console.log('🔄 Detectados dados locais, iniciando migração...');
+        const migrationResult = await MigrationService.migrateLocalDataToSupabase(user.id);
+
+        if (migrationResult.success) {
+          console.log('✅ Migração concluída com sucesso:', {
+            projetos: migrationResult.projectsMigrated,
+            configurações: migrationResult.settingsMigrated
+          });
+        } else {
+          console.warn('⚠️ Migração concluída com erros:', migrationResult.errors);
         }
-        setSavedProjects(projectsData || []);
-      } else {
-        // Para usuários gratuitos, carregar do localStorage
-        console.log('Usuário gratuito - carregando dados do localStorage');
-        const localSettings = LocalStorageService.getUserSettings();
-        const localProjects = LocalStorageService.getProjects();
-        setUserSettings(localSettings);
-        setSavedProjects(localProjects);
       }
+
+      // Carregar dados do Supabase para todos os usuários autenticados
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means "no rows found"
+        console.error("Erro ao buscar perfil:", profileError);
+        throw profileError;
+      }
+      setUserSettings(profileData || null);
+
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (projectsError) {
+        console.error("Erro ao buscar projetos:", projectsError);
+        throw projectsError;
+      }
+      setSavedProjects(projectsData || []);
+
+      // Sincronizar dados para localStorage como cache
+      await MigrationService.syncSupabaseToLocal(user.id);
+      console.log('✅ Dados carregados e sincronizados com sucesso');
 
     } catch (error) {
-      console.error("Error fetching user data:", error);
-      // Para usuários gratuitos, tentar carregar do localStorage como fallback
-      if (!isProUser) {
-        console.log('Fallback - carregando dados do localStorage');
-        const localSettings = LocalStorageService.getUserSettings();
-        const localProjects = LocalStorageService.getProjects();
-        setUserSettings(localSettings);
-        setSavedProjects(localProjects);
-      }
+      console.error("Erro ao carregar dados do usuário:", error);
+      // Fallback para localStorage em caso de erro
+      console.log('⚠️ Usando dados do localStorage como fallback');
+      const localSettings = LocalStorageService.getUserSettings();
+      const localProjects = LocalStorageService.getProjects();
+      setUserSettings(localSettings);
+      setSavedProjects(localProjects);
     }
-  }, [isProUser]);
+  }, []);
 
   useEffect(() => {
     const initializeSession = async () => {
       // 1. Get initial session
       const { data: { session: initialSession } } = await supabase.auth.getSession();
       setSession(initialSession);
-      
+
       // 2. Carregar dados do usuário se estiver logado
       if (initialSession?.user) {
         await fetchUserData(initialSession.user);
@@ -339,7 +350,7 @@ const App: React.FC = () => {
         setUserSettings(localSettings);
         setSavedProjects(localProjects);
       }
-      
+
       // 3. Set loading to false after initial check is complete
       setIsLoadingData(false);
     };
@@ -357,46 +368,45 @@ const App: React.FC = () => {
           setPostLoginAction(null);
         }
       } else {
-        // Clear user-specific data on logout (apenas dados do Supabase)
+        // Ao fazer logout, carregar dados do localStorage
+        console.log('🔓 Logout detectado - carregando dados locais');
         setUserSettings(null);
         setSavedProjects([]);
-        // Manter dados do localStorage para usuários gratuitos
-        if (!isProUser) {
-          const localSettings = LocalStorageService.getUserSettings();
-          const localProjects = LocalStorageService.getProjects();
-          setUserSettings(localSettings);
-          setSavedProjects(localProjects);
-        }
+
+        const localSettings = LocalStorageService.getUserSettings();
+        const localProjects = LocalStorageService.getProjects();
+        setUserSettings(localSettings);
+        setSavedProjects(localProjects);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchUserData, postLoginAction, isProUser]);
+  }, [fetchUserData, postLoginAction]);
 
 
   // --- Project Management & URL Handling ---
   const handleNewProject = useCallback(() => {
     const startNew = () => {
-        setProject(initialProjectState);
-        setCodeError(null);
-        setView('welcome');
-        setSidebarOpen(false);
-        setChatOpen(false);
-        if (canManipulateHistory) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('projectId');
-            window.history.pushState({ path: url.href }, '', url.href);
-        }
+      setProject(initialProjectState);
+      setCodeError(null);
+      setView('welcome');
+      setSidebarOpen(false);
+      setChatOpen(false);
+      if (canManipulateHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('projectId');
+        window.history.pushState({ path: url.href }, '', url.href);
+      }
     };
 
     if (project.files.length > 0) {
-        if (window.confirm("Tem certeza de que deseja iniciar um novo projeto? Seu trabalho local atual será perdido.")) {
-            startNew();
-        }
-    } else {
+      if (window.confirm("Tem certeza de que deseja iniciar um novo projeto? Seu trabalho local atual será perdido.")) {
         startNew();
+      }
+    } else {
+      startNew();
     }
   }, [project, canManipulateHistory, setProject]);
 
@@ -405,24 +415,24 @@ const App: React.FC = () => {
     console.log('📍 Verificando sessão atual:', session ? 'Usuário logado' : 'Usuário não logado');
     console.log('📍 Verificando função supabase.auth.signOut:', typeof supabase.auth.signOut);
     console.log('📍 Versão do Supabase:', supabase.auth ? 'auth disponível' : 'auth não disponível');
-    
+
     try {
       console.log('⏳ Chamando supabase.auth.signOut()...');
       const { error } = await supabase.auth.signOut();
       console.log('📥 Resposta do signOut:', { error });
-      
+
       if (error) {
         console.error('❌ Erro ao fazer logout:', error);
         alert(`Erro ao tentar sair: ${error.message}`);
         return;
       }
-      
+
       console.log('✅ Logout realizado com sucesso!');
       console.log('🧹 Limpando estado do projeto...');
       setProject(initialProjectState);
       console.log('🔄 Redirecionando para tela de boas-vindas...');
       setView('welcome');
-      
+
       console.log('📍 canManipulateHistory:', canManipulateHistory);
       if (canManipulateHistory) {
         const url = new URL(window.location.href);
@@ -434,7 +444,7 @@ const App: React.FC = () => {
       } else {
         console.log('⚠️ cannot manipulate history - protocolo não é http/https');
       }
-      
+
       console.log('🎉 Processo de logout concluído!');
     } catch (err) {
       console.error('💥 Erro inesperado durante logout:', err);
@@ -460,55 +470,55 @@ const App: React.FC = () => {
 
   const handleLoadProject = useCallback((projectId: number, confirmLoad: boolean = true) => {
     if (confirmLoad && project.files.length > 0 && !window.confirm("Carregar este projeto substituirá seu trabalho local atual. Deseja continuar?")) {
-        return;
+      return;
     }
 
     const projectToLoad = savedProjects.find(p => p.id === projectId);
     if (projectToLoad) {
-        setProject({
-            files: projectToLoad.files,
-            projectName: projectToLoad.name,
-            chatMessages: projectToLoad.chat_history,
-            envVars: projectToLoad.env_vars || {},
-            currentProjectId: projectToLoad.id,
-            activeFile: projectToLoad.files.find(f => f.name.includes('html'))?.name || projectToLoad.files[0]?.name || null,
-        });
+      setProject({
+        files: projectToLoad.files,
+        projectName: projectToLoad.name,
+        chatMessages: projectToLoad.chat_history,
+        envVars: projectToLoad.env_vars || {},
+        currentProjectId: projectToLoad.id,
+        activeFile: projectToLoad.files.find(f => f.name.includes('html'))?.name || projectToLoad.files[0]?.name || null,
+      });
 
-        if (canManipulateHistory) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('projectId', String(projectToLoad.id));
-            window.history.pushState({ path: url.href }, '', url.href);
-        }
-        
-        setCodeError(null);
-        setIsInitializing(false);
-        setView('editor');
+      if (canManipulateHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('projectId', String(projectToLoad.id));
+        window.history.pushState({ path: url.href }, '', url.href);
+      }
+
+      setCodeError(null);
+      setIsInitializing(false);
+      setView('editor');
     } else {
-        alert("Não foi possível carregar o projeto. Ele pode ter sido excluído ou ainda não foi carregado.");
-        if (canManipulateHistory) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('projectId');
-            window.history.pushState({ path: url.href }, '', url.href);
-        }
+      alert("Não foi possível carregar o projeto. Ele pode ter sido excluído ou ainda não foi carregado.");
+      if (canManipulateHistory) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('projectId');
+        window.history.pushState({ path: url.href }, '', url.href);
+      }
     }
   }, [project.files.length, savedProjects, setProject, canManipulateHistory]);
 
   useEffect(() => {
-    if (isLoadingData || view) return; 
+    if (isLoadingData || view) return;
 
     const urlParams = new URLSearchParams(window.location.search);
     const projectIdStr = urlParams.get('projectId');
-    
+
     if (canManipulateHistory && projectIdStr) {
       const projectId = parseInt(projectIdStr, 10);
       const projectExists = savedProjects.some(p => p.id === projectId);
       if (projectExists) {
-        handleLoadProject(projectId, false); 
+        handleLoadProject(projectId, false);
         setView('editor');
         return;
       }
     }
-    
+
     if (files.length > 0) {
       setView('editor');
     } else {
@@ -528,36 +538,22 @@ const App: React.FC = () => {
   }, [setIsProUser, canManipulateHistory]);
 
   const handleSaveSettings = useCallback(async (newSettings: Partial<Omit<UserSettings, 'id' | 'updated_at'>>) => {
-    console.log('handleSaveSettings chamado com:', newSettings);
-    
-    // Para usuários gratuitos, salvar apenas localmente (exceto dados da conta)
-    if (!isProUser) {
-      console.log('Usuário gratuito - salvando configurações localmente');
+    console.log('💾 handleSaveSettings chamado com:', newSettings);
+
+    // Verificar se usuário está autenticado
+    if (!session?.user) {
+      console.log('⚠️ Usuário não autenticado - salvando apenas localmente');
       LocalStorageService.saveUserSettings(newSettings);
-      
-      // Atualizar o estado local imediatamente
+
       const existingSettings = LocalStorageService.getUserSettings() || {};
       const updatedSettings = { ...existingSettings, ...newSettings };
       setUserSettings(updatedSettings);
-      
-      // Feedback visual de sucesso
-      const successMessage = Object.keys(newSettings).length === 1 
-        ? `Configuração "${Object.keys(newSettings)[0]}" salva localmente com sucesso!`
-        : 'Configurações salvas localmente com sucesso!';
-      
-      setTimeout(() => {
-        alert(successMessage);
-      }, 100);
+
+      alert('Configurações salvas localmente. Faça login para sincronizar na nuvem.');
       return;
     }
-    
-    // Para usuários Pro, salvar no Supabase
-    if (!session?.user) {
-      console.error('Usuário não está logado');
-      alert("Você precisa estar logado para salvar configurações.");
-      return;
-    }
-    
+
+    // Para usuários autenticados, salvar no Supabase
     try {
       const settingsData = {
         ...newSettings,
@@ -565,23 +561,20 @@ const App: React.FC = () => {
         updated_at: new Date().toISOString(),
       };
 
-      console.log('Dados que serão salvos no Supabase:', {
+      console.log('📤 Salvando configurações no Supabase:', {
         userId: session.user.id,
         campos: Object.keys(newSettings),
-        dados: settingsData
       });
 
       const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
-      
+
       if (error) {
-        console.error("Erro completo do Supabase:", {
+        console.error("❌ Erro ao salvar no Supabase:", {
           error,
           code: error.code,
           message: error.message,
-          details: error.details,
-          hint: error.hint
         });
-        
+
         // Tratamento específico para erros comuns
         if (error.code === '42501') {
           alert("Erro de permissão: Verifique se as políticas RLS estão configuradas corretamente no Supabase.");
@@ -589,35 +582,37 @@ const App: React.FC = () => {
           alert("Perfil não encontrado. Tente fazer login novamente.");
         } else if (error.message.includes('column') && error.message.includes('does not exist')) {
           alert("Erro de schema: Execute o script SQL fornecido no painel do Supabase.");
-        } else if (error.code === '23505') {
-          alert("Erro de chave única: Já existe um perfil para este usuário.");
         } else {
           alert(`Erro ao salvar configurações (${error.code}): ${error.message}`);
         }
+
+        // Salvar localmente como fallback
+        LocalStorageService.saveUserSettings(newSettings);
       } else {
-        console.log('Configurações salvas com sucesso no Supabase:', data);
-        
-        // Atualizar o estado local imediatamente
-        setUserSettings(prev => {
-          const updated = { ...prev, ...data };
-          return updated;
-        });
-        
-        // Feedback visual de sucesso
-        const successMessage = Object.keys(newSettings).length === 1 
+        console.log('✅ Configurações salvas no Supabase:', data);
+
+        // Atualizar estado local
+        setUserSettings(prev => ({ ...prev, ...data }));
+
+        // Sincronizar com localStorage como cache
+        LocalStorageService.saveUserSettings(data);
+
+        const successMessage = Object.keys(newSettings).length === 1
           ? `Configuração "${Object.keys(newSettings)[0]}" salva com sucesso!`
           : 'Configurações salvas com sucesso!';
-        
-        // Usar um timeout para mostrar a mensagem após o modal fechar
+
         setTimeout(() => {
           alert(successMessage);
         }, 100);
       }
     } catch (err) {
-      console.error("Erro inesperado ao salvar configurações:", err);
+      console.error("💥 Erro inesperado ao salvar configurações:", err);
       alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}. Tente novamente.`);
+
+      // Salvar localmente como fallback
+      LocalStorageService.saveUserSettings(newSettings);
     }
-  }, [session, setUserSettings, isProUser]);
+  }, [session, setUserSettings]);
 
   const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
     if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
@@ -669,13 +664,13 @@ const App: React.FC = () => {
     if (appType !== 'auto') {
       currentPrompt = `${prompt} (Gerar em ${appType})`; // Append appType to prompt
     }
-    
+
     if (currentPrompt.toLowerCase().includes('ia') && !effectiveGeminiApiKey) {
-      setProject(p => ({...p, chatMessages: [...p.chatMessages, { role: 'assistant', content: 'Para adicionar funcionalidades de IA ao seu projeto, primeiro adicione sua chave de API do Gemini.'}]}));
+      setProject(p => ({ ...p, chatMessages: [...p.chatMessages, { role: 'assistant', content: 'Para adicionar funcionalidades de IA ao seu projeto, primeiro adicione sua chave de API do Gemini.' }] }));
       setApiKeyModalOpen(true);
       return;
     }
-    
+
     if (provider === AIProvider.Gemini && !effectiveGeminiApiKey) {
       setPendingPrompt({ prompt, provider, model, mode, attachments, appType, generationMode });
       setApiKeyModalOpen(true);
@@ -687,60 +682,60 @@ const App: React.FC = () => {
       setOpenRouterKeyModalOpen(true);
       return;
     }
-    
+
     if ((provider === AIProvider.OpenAI || provider === AIProvider.DeepSeek) && !isProUser) {
-        alert('Este modelo está disponível apenas para usuários Pro. Por favor, atualize seu plano na página de preços.');
-        return;
+      alert('Este modelo está disponível apenas para usuários Pro. Por favor, atualize seu plano na página de preços.');
+      return;
     }
 
     const isFirstGeneration = project.files.length === 0;
 
     const userMessage: ChatMessage = { role: 'user', content: prompt };
     const thinkingMessage: ChatMessage = { role: 'assistant', content: 'Pensando...', isThinking: true };
-    
+
     const newChatHistory = view !== 'editor' ? [userMessage, thinkingMessage] : [...project.chatMessages, userMessage, thinkingMessage];
     setProject(p => ({ ...p, chatMessages: newChatHistory, appType: appType }));
 
     if (view !== 'editor') {
       setView('editor');
     }
-    
+
     if (isFirstGeneration && effectiveGeminiApiKey) {
       setIsInitializing(true);
       setGeneratingFile('Analisando o prompt...');
       const newName = await generateProjectName(currentPrompt, effectiveGeminiApiKey); // Use currentPrompt
-      setProject(p => ({...p, projectName: newName, appType: appType}));
+      setProject(p => ({ ...p, projectName: newName, appType: appType }));
       setGeneratingFile('Preparando para gerar arquivos...');
     }
 
     let thoughtMessageFound = false;
     let accumulatedContent = "";
     const onChunk = (chunk: string) => {
-        accumulatedContent += chunk;
-        if (!thoughtMessageFound) {
-            const separatorIndex = accumulatedContent.indexOf('\n---\n');
-            if (separatorIndex !== -1) {
-                const thought = accumulatedContent.substring(0, separatorIndex).trim();
-                setProject(p => {
-                    const newMessages = [...p.chatMessages];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage?.isThinking) {
-                        lastMessage.content = thought;
-                    }
-                    return { ...p, chatMessages: newMessages };
-                });
-                thoughtMessageFound = true;
+      accumulatedContent += chunk;
+      if (!thoughtMessageFound) {
+        const separatorIndex = accumulatedContent.indexOf('\n---\n');
+        if (separatorIndex !== -1) {
+          const thought = accumulatedContent.substring(0, separatorIndex).trim();
+          setProject(p => {
+            const newMessages = [...p.chatMessages];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.isThinking) {
+              lastMessage.content = thought;
             }
+            return { ...p, chatMessages: newMessages };
+          });
+          thoughtMessageFound = true;
         }
-        
-        if (isInitializing) {
-            const fileMatches = [...accumulatedContent.matchAll(/"name":\s*"([^"]+)"/g)];
-            if (fileMatches.length > 0) {
-                const lastMatch = fileMatches[fileMatches.length - 1];
-                const currentFileName = lastMatch[1];
-                setGeneratingFile(prevFile => prevFile === currentFileName ? prevFile : currentFileName);
-            }
+      }
+
+      if (isInitializing) {
+        const fileMatches = [...accumulatedContent.matchAll(/"name":\s*"([^"]+)"/g)];
+        if (fileMatches.length > 0) {
+          const lastMatch = fileMatches[fileMatches.length - 1];
+          const currentFileName = lastMatch[1];
+          setGeneratingFile(prevFile => prevFile === currentFileName ? prevFile : currentFileName);
         }
+      }
     };
 
     // Check daily usage limit for Gemini with default API key
@@ -778,7 +773,7 @@ const App: React.FC = () => {
             fullResponse = await generateCodeStreamWithOpenAI(currentPrompt, project.files, onChunk, model); // Use currentPrompt
             break;
           case AIProvider.DeepSeek:
-             fullResponse = await generateCodeStreamWithDeepSeek(currentPrompt, project.files, onChunk, model); // Use currentPrompt
+            fullResponse = await generateCodeStreamWithDeepSeek(currentPrompt, project.files, onChunk, model); // Use currentPrompt
             break;
           case AIProvider.OpenRouter:
             fullResponse = await generateCodeStreamWithOpenRouter(currentPrompt, project.files, project.envVars, onChunk, userSettings!.openrouter_api_key!, model); // Use currentPrompt
@@ -786,13 +781,13 @@ const App: React.FC = () => {
           default:
             throw new Error('Provedor de IA não suportado');
         }
-        
+
         let finalJsonPayload = fullResponse;
         const separatorIndex = fullResponse.indexOf('\n---\n');
         if (separatorIndex !== -1) {
-            finalJsonPayload = fullResponse.substring(separatorIndex + 5);
+          finalJsonPayload = fullResponse.substring(separatorIndex + 5);
         }
-        
+
         result = extractAndParseJson(finalJsonPayload);
         break; // If successful, break out of retry loop
       } catch (error) {
@@ -811,73 +806,73 @@ const App: React.FC = () => {
     if (!result) {
       const errorMessageText = lastError instanceof Error ? lastError.message : "Ocorreu um erro desconhecido após várias tentativas.";
       setProject(p => {
-            const newMessages = [...p.chatMessages];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage?.role === 'assistant') {
-                 lastMessage.content = `Erro: ${errorMessageText}`;
-                 lastMessage.isThinking = false;
-            } else {
-                newMessages.push({ role: 'assistant', content: `Erro: ${errorMessageText}`, isThinking: false });
-            }
-            return { ...p, chatMessages: newMessages };
-        });
+        const newMessages = [...p.chatMessages];
+        const lastMessage = newMessages[newMessages.length - 1];
+        if (lastMessage?.role === 'assistant') {
+          lastMessage.content = `Erro: ${errorMessageText}`;
+          lastMessage.isThinking = false;
+        } else {
+          newMessages.push({ role: 'assistant', content: `Erro: ${errorMessageText}`, isThinking: false });
+        }
+        return { ...p, chatMessages: newMessages };
+      });
       setIsInitializing(false);
       return;
     }
-    
+
     if (result.files && Array.isArray(result.files)) {
       setProject(p => {
-          const updatedFilesMap = new Map(p.files.map(f => [f.name, f]));
-          result.files.forEach((file: ProjectFile) => {
-              updatedFilesMap.set(file.name, file);
-          });
-          const newFiles = Array.from(updatedFilesMap.values());
-          let newActiveFile = p.activeFile;
-          if (result.files.length > 0 && !newActiveFile) {
-              const foundFile = result.files.find((f: ProjectFile) => f.name.includes('html')) || result.files[0];
-              newActiveFile = foundFile.name;
-          }
-          return { ...p, files: newFiles, activeFile: newActiveFile };
+        const updatedFilesMap = new Map(p.files.map(f => [f.name, f]));
+        result.files.forEach((file: ProjectFile) => {
+          updatedFilesMap.set(file.name, file);
+        });
+        const newFiles = Array.from(updatedFilesMap.values());
+        let newActiveFile = p.activeFile;
+        if (result.files.length > 0 && !newActiveFile) {
+          const foundFile = result.files.find((f: ProjectFile) => f.name.includes('html')) || result.files[0];
+          newActiveFile = foundFile.name;
+        }
+        return { ...p, files: newFiles, activeFile: newActiveFile };
       });
     }
-    
+
     if (result.environmentVariables) {
       if (result.environmentVariables.GEMINI_API_KEY !== undefined && userSettings?.gemini_api_key) {
-          result.environmentVariables.GEMINI_API_KEY = userSettings.gemini_api_key;
+        result.environmentVariables.GEMINI_API_KEY = userSettings.gemini_api_key;
       }
 
       setProject(p => {
-          const newVars = { ...p.envVars };
-          for (const [key, value] of Object.entries(result.environmentVariables)) {
-              if (value === null) {
-                  delete newVars[key];
-              } else {
-                  newVars[key] = value as string;
-              }
+        const newVars = { ...p.envVars };
+        for (const [key, value] of Object.entries(result.environmentVariables)) {
+          if (value === null) {
+            delete newVars[key];
+          } else {
+            newVars[key] = value as string;
           }
-          return { ...p, envVars: newVars };
+        }
+        return { ...p, envVars: newVars };
       });
     }
 
-     setProject(p => {
-          const newMessages = [...p.chatMessages];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage?.role === 'assistant') {
-              lastMessage.content = result.message || 'Geração concluída.';
-              lastMessage.summary = result.summary;
-              lastMessage.isThinking = false;
-              lastMessage.fromCache = responseFromCache;
-              return { ...p, chatMessages: newMessages };
-          }
-          return p;
-      });
+    setProject(p => {
+      const newMessages = [...p.chatMessages];
+      const lastMessage = newMessages[newMessages.length - 1];
+      if (lastMessage?.role === 'assistant') {
+        lastMessage.content = result.message || 'Geração concluída.';
+        lastMessage.summary = result.summary;
+        lastMessage.isThinking = false;
+        lastMessage.fromCache = responseFromCache;
+        return { ...p, chatMessages: newMessages };
+      }
+      return p;
+    });
 
-     if (result.supabaseAdminAction) {
-       await handleSupabaseAdminAction(result.supabaseAdminAction);
-     }
-      
+    if (result.supabaseAdminAction) {
+      await handleSupabaseAdminAction(result.supabaseAdminAction);
+    }
+
     if (isFirstGeneration) {
-        setIsInitializing(false);
+      setIsInitializing(false);
     }
   }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile, setOpenRouterKeyModalOpen]);
 
@@ -904,10 +899,10 @@ const App: React.FC = () => {
     const fixPrompt = `O código anterior gerou um erro de visualização: "${codeError}". Por favor, analise os arquivos e corrija o erro. Forneça apenas os arquivos modificados.`;
     handleSendMessage(fixPrompt, lastModelUsed.provider, lastModelUsed.model, AIMode.Agent); // Default to Agent for fixing code
   }, [codeError, lastModelUsed, handleSendMessage]);
-  
+
   const handleSaveProject = useCallback(async () => {
-    console.log('💾 handleSaveProject called');
-    
+    console.log('💾 handleSaveProject chamado');
+
     if (files.length === 0) {
       alert("Não é possível salvar um projeto vazio.");
       return;
@@ -921,50 +916,38 @@ const App: React.FC = () => {
       updated_at: new Date().toISOString(),
     };
 
-    // Para usuários gratuitos, salvar localmente
-    if (!isProUser) {
-      console.log('Usuário gratuito - salvando projeto localmente');
-      
+    // Verificar se usuário está autenticado
+    if (!session) {
+      console.log('⚠️ Usuário não autenticado - salvando apenas localmente');
+
       // Gerar ID local único se não existir
       let projectId = currentProjectId;
       if (!projectId) {
-        projectId = Date.now() + Math.random(); // ID único baseado em timestamp
+        projectId = Date.now() + Math.random();
       }
-      
+
       const localProject: SavedProject = {
         ...projectData,
         id: projectId,
-        user_id: 'local-user', // Identificador para usuário local
+        user_id: 'local-user',
         created_at: new Date().toISOString(),
       };
 
-      // Salvar no localStorage
       LocalStorageService.addProject(localProject);
-      
-      // Atualizar estado
       setProject(p => ({ ...p, currentProjectId: projectId }));
-      
-      // Atualizar lista de projetos locais
+
       const updatedProjects = LocalStorageService.getProjects();
       setSavedProjects(updatedProjects);
-      
-      alert(`Projeto "${projectName}" salvo localmente com sucesso!`);
+
+      alert(`Projeto "${projectName}" salvo localmente. Faça login para sincronizar na nuvem.`);
       return;
     }
 
-    // Para usuários Pro, salvar no Supabase
-    if (!session) {
-      console.log('⚠️ No session, opening auth modal');
-      setPostLoginAction(() => () => handleSaveProject());
-      setAuthModalOpen(true);
-      return;
-    }
-
+    // Para usuários autenticados, salvar no Supabase
     console.log('📝 Salvando projeto no Supabase:', {
       name: projectName,
       filesCount: files.length,
       userId: session.user.id,
-      timestamp: new Date().toISOString()
     });
 
     const supabaseProjectData = {
@@ -972,84 +955,109 @@ const App: React.FC = () => {
       user_id: session.user.id,
     };
 
-    console.log('📊 Dados do projeto a salvar no Supabase:', supabaseProjectData);
+    try {
+      if (currentProjectId) {
+        // Atualizar projeto existente
+        console.log('🔄 Atualizando projeto existente:', currentProjectId);
+        const { data, error } = await supabase
+          .from('projects')
+          .update(supabaseProjectData)
+          .eq('id', currentProjectId)
+          .select()
+          .single();
 
-    if (currentProjectId) {
-      // Update existing project
-      console.log('🔄 Atualizando projeto existente:', currentProjectId);
-      const { data, error } = await supabase
-        .from('projects')
-        .update(supabaseProjectData)
-        .eq('id', currentProjectId)
-        .select()
-        .single();
+        if (error) {
+          console.error('❌ Erro de atualização:', error);
+          alert(`Erro ao atualizar o projeto: ${error.message}`);
 
-      if (error) {
-        console.error('❌ Erro de atualização:', error);
-        console.error('📋 Detalhes do erro:', {
-          code: error.code,
-          message: error.message,
-          hint: error.hint,
-          details: error.details
-        });
-        alert(`Erro ao atualizar o projeto: ${error.message}\n\nCódigo: ${error.code}\n\nPor favor, abra o console (F12) para mais detalhes.`);
+          // Salvar localmente como fallback
+          LocalStorageService.updateProject(currentProjectId, projectData);
+        } else {
+          console.log('✅ Atualização bem-sucedida:', data);
+          setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? data : p));
+
+          // Sincronizar com localStorage
+          LocalStorageService.updateProject(currentProjectId, data);
+
+          alert(`Projeto "${projectName}" atualizado com sucesso!`);
+        }
       } else {
-        console.log('✅ Atualização bem-sucedida:', data);
-        setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? data : p));
-        alert(`Projeto "${projectName}" atualizado com sucesso!`);
-      }
-    } else {
-      // Insert new project
-      console.log('➕ Inserindo novo projeto');
-      const { data, error } = await supabase
-        .from('projects')
-        .insert(supabaseProjectData)
-        .select()
-        .single();
+        // Inserir novo projeto
+        console.log('➕ Inserindo novo projeto');
+        const { data, error } = await supabase
+          .from('projects')
+          .insert(supabaseProjectData)
+          .select()
+          .single();
 
-      if (error) {
-        console.error('❌ Erro de inserção:', error);
-        console.error('📋 Detalhes do erro:', {
-          code: error.code,
-          message: error.message,
-          hint: error.hint,
-          details: error.details
-        });
-        alert(`Erro ao salvar o projeto: ${error.message}\n\nCódigo: ${error.code}\n\nPor favor, abra o console (F12) para mais detalhes.`);
-      } else {
-        console.log('✅ Inserção bem-sucedida:', data);
-        setProject(p => ({ ...p, currentProjectId: data.id }));
-        setSavedProjects([...savedProjects, data]);
-        alert(`Projeto "${projectName}" salvo com sucesso!`);
+        if (error) {
+          console.error('❌ Erro de inserção:', error);
+          alert(`Erro ao salvar o projeto: ${error.message}`);
+
+          // Salvar localmente como fallback
+          const localId = Date.now() + Math.random();
+          const localProject: SavedProject = {
+            ...projectData,
+            id: localId,
+            user_id: session.user.id,
+            created_at: new Date().toISOString(),
+          };
+          LocalStorageService.addProject(localProject);
+          setProject(p => ({ ...p, currentProjectId: localId }));
+        } else {
+          console.log('✅ Inserção bem-sucedida:', data);
+          setProject(p => ({ ...p, currentProjectId: data.id }));
+          setSavedProjects([...savedProjects, data]);
+
+          // Sincronizar com localStorage
+          LocalStorageService.addProject(data);
+
+          alert(`Projeto "${projectName}" salvo com sucesso!`);
+        }
       }
+    } catch (err) {
+      console.error('💥 Erro inesperado:', err);
+      alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
-  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject, isProUser]);
+  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject]);
 
   const handleDeleteProject = useCallback(async (projectId: number) => {
-    // Para usuários gratuitos, excluir do localStorage
-    if (!isProUser) {
-      console.log('Usuário gratuito - excluindo projeto do localStorage');
+    // Verificar se usuário está autenticado
+    if (!session) {
+      console.log('⚠️ Usuário não autenticado - excluindo apenas do localStorage');
       LocalStorageService.deleteProject(projectId);
       setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
       if (currentProjectId === projectId) {
         handleNewProject();
       }
-      alert("Projeto excluído localmente com sucesso.");
+      alert("Projeto excluído localmente.");
       return;
     }
 
-    // Para usuários Pro, excluir do Supabase
-    const { error } = await supabase.from('projects').delete().eq('id', projectId);
-    if (error) {
-      alert(`Erro ao excluir o projeto: ${error.message}`);
-    } else {
-      setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
-      if (currentProjectId === projectId) {
-        handleNewProject();
+    // Para usuários autenticados, excluir do Supabase
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', projectId);
+
+      if (error) {
+        console.error('❌ Erro ao excluir projeto:', error);
+        alert(`Erro ao excluir o projeto: ${error.message}`);
+      } else {
+        console.log('✅ Projeto excluído do Supabase');
+        setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
+
+        // Também excluir do localStorage
+        LocalStorageService.deleteProject(projectId);
+
+        if (currentProjectId === projectId) {
+          handleNewProject();
+        }
+        alert("Projeto excluído com sucesso.");
       }
-      alert("Projeto excluído com sucesso.");
+    } catch (err) {
+      console.error('💥 Erro inesperado ao excluir:', err);
+      alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
-  }, [currentProjectId, handleNewProject, isProUser]);
+  }, [session, currentProjectId, handleNewProject]);
 
   const handleOpenSettings = () => {
     if (session) {
@@ -1087,17 +1095,17 @@ const App: React.FC = () => {
   const handleProjectImport = useCallback((importedFiles: ProjectFile[]) => {
     const htmlFile = importedFiles.find(f => f.name.endsWith('index.html')) || importedFiles[0];
     setProject(p => ({
-        ...p,
-        files: importedFiles,
-        chatMessages: [
-            { role: 'assistant', content: INITIAL_CHAT_MESSAGE },
-            { role: 'assistant', content: `Importei ${importedFiles.length} arquivos. O que você gostaria de construir ou modificar?` }
-        ],
-        activeFile: htmlFile?.name || null,
-        projectName: 'ProjetoImportado',
-        currentProjectId: null, // It's a new local project until saved
+      ...p,
+      files: importedFiles,
+      chatMessages: [
+        { role: 'assistant', content: INITIAL_CHAT_MESSAGE },
+        { role: 'assistant', content: `Importei ${importedFiles.length} arquivos. O que você gostaria de construir ou modificar?` }
+      ],
+      activeFile: htmlFile?.name || null,
+      projectName: 'ProjetoImportado',
+      currentProjectId: null, // It's a new local project until saved
     }));
-    
+
     setGithubModalOpen(false);
     setView('editor');
   }, [setProject]);
@@ -1106,44 +1114,44 @@ const App: React.FC = () => {
 
   const handleDeleteFile = useCallback((fileNameToDelete: string) => {
     setProject(p => {
-        const updatedFiles = p.files.filter(f => f.name !== fileNameToDelete);
-        let newActiveFile = p.activeFile;
-        if (p.activeFile === fileNameToDelete) {
-            if (updatedFiles.length > 0) {
-                const closingFileIndex = p.files.findIndex(f => f.name === fileNameToDelete);
-                const newActiveIndex = Math.max(0, closingFileIndex - 1);
-                newActiveFile = updatedFiles[newActiveIndex]?.name || null;
-            } else {
-                newActiveFile = null;
-            }
+      const updatedFiles = p.files.filter(f => f.name !== fileNameToDelete);
+      let newActiveFile = p.activeFile;
+      if (p.activeFile === fileNameToDelete) {
+        if (updatedFiles.length > 0) {
+          const closingFileIndex = p.files.findIndex(f => f.name === fileNameToDelete);
+          const newActiveIndex = Math.max(0, closingFileIndex - 1);
+          newActiveFile = updatedFiles[newActiveIndex]?.name || null;
+        } else {
+          newActiveFile = null;
         }
-        return { ...p, files: updatedFiles, activeFile: newActiveFile };
+      }
+      return { ...p, files: updatedFiles, activeFile: newActiveFile };
     });
   }, [setProject]);
 
   const handleRenameFile = useCallback((oldName: string, newName: string) => {
     if (project.files.some(f => f.name === newName)) {
-        alert(`Um arquivo chamado "${newName}" já existe.`);
-        return;
+      alert(`Um arquivo chamado "${newName}" já existe.`);
+      return;
     }
     setProject(p => {
-        const updatedFiles = p.files.map(f => f.name === oldName ? { ...f, name: newName } : f);
-        const newActiveFile = p.activeFile === oldName ? newName : p.activeFile;
-        return { ...p, files: updatedFiles, activeFile: newActiveFile };
+      const updatedFiles = p.files.map(f => f.name === oldName ? { ...f, name: newName } : f);
+      const newActiveFile = p.activeFile === oldName ? newName : p.activeFile;
+      return { ...p, files: updatedFiles, activeFile: newActiveFile };
     });
   }, [project, setProject]);
 
   const handleRestoreVersion = useCallback((version: any) => {
     setProject(p => ({
-        ...p,
-        files: version.files,
-        chatMessages: version.chatHistory,
-        envVars: version.envVars,
-        activeFile: version.files.find(f => f.name.includes('html'))?.name || version.files[0]?.name || null
+      ...p,
+      files: version.files,
+      chatMessages: version.chatHistory,
+      envVars: version.envVars,
+      activeFile: version.files.find(f => f.name.includes('html'))?.name || version.files[0]?.name || null
     }));
     alert(`Projeto restaurado para a versão de ${new Date(version.timestamp).toLocaleString('pt-BR')}`);
   }, [setProject]);
-  
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) { setSidebarOpen(false); setChatOpen(false); }
@@ -1166,7 +1174,7 @@ const App: React.FC = () => {
   const mainContent = () => {
     switch (view) {
       case 'welcome':
-        return <WelcomeScreen 
+        return <WelcomeScreen
           session={session}
           onLoginClick={() => setAuthModalOpen(true)}
           onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType, generationMode: GenerationMode) => {
@@ -1184,7 +1192,7 @@ const App: React.FC = () => {
       case 'pricing':
         return <PricingPage onBack={() => setView(files.length > 0 ? 'editor' : 'welcome')} onNewProject={handleNewProject} />;
       case 'projects':
-        return <ProjectsPage 
+        return <ProjectsPage
           projects={savedProjects}
           onLoadProject={handleLoadProject}
           onDeleteProject={handleDeleteProject}
@@ -1208,7 +1216,7 @@ const App: React.FC = () => {
               {isInitializing && <InitializingOverlay projectName={projectName} generatingFile={generatingFile} />}
               <div className="hidden lg:block w-[320px] flex-shrink-0">
                 <Sidebar
-                  files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={name => setProject(p => ({...p, activeFile: name}))} onDownload={handleDownload}
+                  files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={name => setProject(p => ({ ...p, activeFile: name }))} onDownload={handleDownload}
                   onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)} onOpenSupabaseAdmin={() => setSupabaseAdminModalOpen(true)}
                   onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
@@ -1216,44 +1224,44 @@ const App: React.FC = () => {
                   session={session} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
                 />
               </div>
-              
+
               {isSidebarOpen && (
-                 <div className="absolute top-0 left-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setSidebarOpen(false)}>
-                    <div className="w-[320px] h-full bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <Sidebar
-                            files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={(file) => {setProject(p => ({...p, activeFile: file})); setSidebarOpen(false);}}
-                            onDownload={() => {handleDownload(); setSidebarOpen(false);}} onOpenSettings={() => {handleOpenSettings(); setSidebarOpen(false);}}
-                            onOpenGithubImport={() => {setGithubModalOpen(true); setSidebarOpen(false);}} onOpenSupabaseAdmin={() => {setSupabaseAdminModalOpen(true); setSidebarOpen(false);}}
-                            onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
-                            onNewProject={handleNewProject} onClose={() => setSidebarOpen(false)}
-                            onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
-                            onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
-                            session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
-                        />
-                    </div>
+                <div className="absolute top-0 left-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setSidebarOpen(false)}>
+                  <div className="w-[320px] h-full bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <Sidebar
+                      files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={(file) => { setProject(p => ({ ...p, activeFile: file })); setSidebarOpen(false); }}
+                      onDownload={() => { handleDownload(); setSidebarOpen(false); }} onOpenSettings={() => { handleOpenSettings(); setSidebarOpen(false); }}
+                      onOpenGithubImport={() => { setGithubModalOpen(true); setSidebarOpen(false); }} onOpenSupabaseAdmin={() => { setSupabaseAdminModalOpen(true); setSidebarOpen(false); }}
+                      onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
+                      onNewProject={handleNewProject} onClose={() => setSidebarOpen(false)}
+                      onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
+                      onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
+                      session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
+                    />
+                  </div>
                 </div>
               )}
 
               <main className="flex-1 min-w-0">
-                <EditorView 
+                <EditorView
                   files={files} activeFile={activeFile} projectName={projectName} theme={theme} onThemeChange={setTheme}
-                  onFileSelect={name => setProject(p => ({...p, activeFile: name}))} onFileDelete={handleDeleteFile} onRunLocally={handleRunLocally}
+                  onFileSelect={name => setProject(p => ({ ...p, activeFile: name }))} onFileDelete={handleDeleteFile} onRunLocally={handleRunLocally}
                   codeError={codeError} onFixCode={handleFixCode} onClearError={() => setCodeError(null)} onError={setCodeError} envVars={envVars}
                   initialPath={activeFile ? `/${activeFile}` : '/index.html'}
                   onNavigate={(path) => setProject(p => ({ ...p, activeFile: path.startsWith('/') ? path.substring(1) : path }))}
                   onToggleVersionModal={() => setVersionModalOpen(true)}
                 />
               </main>
-              
+
               <div className="hidden lg:block w-full max-w-sm xl:max-w-md flex-shrink-0">
                 <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} selectedModel={selectedModel} />
               </div>
-              
+
               {isChatOpen && (
-                 <div className="absolute top-0 right-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setChatOpen(false)}>
-                    <div className="absolute right-0 w-full max-w-sm h-full bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
-                       <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} selectedModel={selectedModel} onClose={() => setChatOpen(false)} />
-                    </div>
+                <div className="absolute top-0 right-0 h-full w-full bg-black z-20 lg:hidden" onClick={() => setChatOpen(false)}>
+                  <div className="absolute right-0 w-full max-w-sm h-full bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <ChatPanel messages={chatMessages} onSendMessage={handleSendMessage} isProUser={isProUser} selectedModel={selectedModel} onClose={() => setChatOpen(false)} />
+                  </div>
                 </div>
               )}
             </div>
@@ -1283,16 +1291,16 @@ const App: React.FC = () => {
       {mainContent()}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />
       <SettingsModal
-          isOpen={isSettingsOpen && !!session}
-          onClose={() => setSettingsOpen(false)}
-          settings={userSettings || { id: session?.user?.id || '' }}
-          onSave={handleSaveSettings}
+        isOpen={isSettingsOpen && !!session}
+        onClose={() => setSettingsOpen(false)}
+        settings={userSettings || { id: session?.user?.id || '' }}
+        onSave={handleSaveSettings}
       />
       <SupabaseAdminModal
-          isOpen={isSupabaseAdminModalOpen && !!session}
-          onClose={() => setSupabaseAdminModalOpen(false)}
-          settings={userSettings || { id: session?.user?.id || '' }}
-          onSave={handleSaveSettings}
+        isOpen={isSupabaseAdminModalOpen && !!session}
+        onClose={() => setSupabaseAdminModalOpen(false)}
+        settings={userSettings || { id: session?.user?.id || '' }}
+        onSave={handleSaveSettings}
       />
       <StripeModal
         isOpen={isStripeModalOpen && !!session}
@@ -1306,7 +1314,7 @@ const App: React.FC = () => {
         settings={userSettings || { id: session?.user?.id || '' }}
         onSave={handleSaveSettings}
       />
-       <OpenStreetMapModal
+      <OpenStreetMapModal
         isOpen={isOSMModalOpen}
         onClose={() => setOSMModalOpen(false)}
       />
