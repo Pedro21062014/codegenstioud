@@ -32,12 +32,12 @@ export const StripeModal: React.FC<StripeModalProps> = ({ isOpen, onClose, setti
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center animate-fadeIn"
       onClick={onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -48,7 +48,7 @@ export const StripeModal: React.FC<StripeModalProps> = ({ isOpen, onClose, setti
             <CloseIcon />
           </button>
         </div>
-        
+
         <p className="text-var-fg-muted text-sm mb-4">
           Forneça suas chaves de API do Stripe para permitir que a IA gere funcionalidades de pagamento. Você pode encontrá-las em seu Painel do Stripe para Desenvolvedores &gt; Chaves de API.
         </p>
@@ -64,10 +64,10 @@ export const StripeModal: React.FC<StripeModalProps> = ({ isOpen, onClose, setti
               className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-[#635BFF]/50"
             />
           </div>
-           <div className="p-3 bg-red-900/50 border border-red-700/50 rounded-lg">
+          <div className="p-3 bg-red-900/50 border border-red-700/50 rounded-lg">
             <label className="block text-sm font-medium text-red-200 mb-1">Chave Secreta</label>
-             <p className="text-xs text-red-300/80 mb-2">
-                Esta chave concede acesso total à sua conta Stripe. Manuseie com cuidado. Ela será armazenada com segurança em seu perfil.
+            <p className="text-xs text-red-300/80 mb-2">
+              Esta chave concede acesso total à sua conta Stripe. Manuseie com cuidado. Ela será armazenada com segurança em seu perfil.
             </p>
             <input
               type="password"

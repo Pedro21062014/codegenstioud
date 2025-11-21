@@ -11,18 +11,18 @@ interface SettingsModalProps {
 }
 
 const testApiKey = async (key: string): Promise<{ success: boolean; message: string }> => {
-    if (!key) return { success: false, message: 'A chave não pode estar em branco.' };
-    try {
-        const ai = new GoogleGenAI({ apiKey: key });
-        const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: 'diga "ok"' });
-        if (response.text.trim().toLowerCase() === 'ok') {
-            return { success: true, message: 'Conexão bem-sucedida!' };
-        }
-        return { success: false, message: 'A chave é válida, mas a resposta foi inesperada.' };
-    } catch (e: any) {
-        console.error("API Key test failed", e);
-        return { success: false, message: `Falha na conexão: ${e.message}` };
+  if (!key) return { success: false, message: 'A chave não pode estar em branco.' };
+  try {
+    const ai = new GoogleGenAI({ apiKey: key });
+    const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: 'diga "ok"' });
+    if (response.text.trim().toLowerCase() === 'ok') {
+      return { success: true, message: 'Conexão bem-sucedida!' };
     }
+    return { success: false, message: 'A chave é válida, mas a resposta foi inesperada.' };
+  } catch (e: any) {
+    console.error("API Key test failed", e);
+    return { success: false, message: `Falha na conexão: ${e.message}` };
+  }
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
@@ -38,14 +38,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
 
   useEffect(() => {
     if (isOpen) {
-        setGeminiKey(settings.gemini_api_key || '');
-        setGithubToken(settings.github_access_token || '');
-        setOpenRouterKey(settings.openrouter_api_key || '');
-        setFirebaseProjectId(settings.firebase_project_id || '');
-        setFirebaseServiceAccountKey(settings.firebase_service_account_key || '');
-        setGcpProjectId(settings.gcp_project_id || '');
-        setGcpCredentials(settings.gcp_credentials || '');
-        setGeminiTestStatus({ status: 'idle', message: '' });
+      setGeminiKey(settings.gemini_api_key || '');
+      setGithubToken(settings.github_access_token || '');
+      setOpenRouterKey(settings.openrouter_api_key || '');
+      setFirebaseProjectId(settings.firebase_project_id || '');
+      setFirebaseServiceAccountKey(settings.firebase_service_account_key || '');
+      setGcpProjectId(settings.gcp_project_id || '');
+      setGcpCredentials(settings.gcp_credentials || '');
+      setGeminiTestStatus({ status: 'idle', message: '' });
     }
   }, [isOpen, settings]);
 
@@ -60,7 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
       setGeminiTestStatus({ status: 'error', message: result.message });
     }
   };
-  
+
   const handleSave = () => {
     onSave({
       gemini_api_key: geminiKey,
@@ -76,11 +76,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
@@ -94,21 +94,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
         <div className="flex border-b border-var-border-default mb-6">
           <button
             onClick={() => setActiveTab('api-keys')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'api-keys'
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'api-keys'
                 ? 'border-var-accent text-var-accent'
                 : 'border-transparent text-var-fg-muted hover:text-var-fg-default'
-            }`}
+              }`}
           >
             Chaves de API
           </button>
           <button
             onClick={() => setActiveTab('integrations')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'integrations'
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'integrations'
                 ? 'border-var-accent text-var-accent'
                 : 'border-transparent text-var-fg-muted hover:text-var-fg-default'
-            }`}
+              }`}
           >
             Integrações
           </button>

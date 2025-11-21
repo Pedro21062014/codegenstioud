@@ -34,12 +34,12 @@ export const GoogleCloudModal: React.FC<GoogleCloudModalProps> = ({ isOpen, onCl
   }
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center animate-fadeIn"
       onClick={onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -48,7 +48,7 @@ export const GoogleCloudModal: React.FC<GoogleCloudModalProps> = ({ isOpen, onCl
             <CloseIcon />
           </button>
         </div>
-        
+
         <p className="text-var-fg-muted text-sm mb-4">
           Conecte seu projeto Google Cloud para habilitar poderosos serviços de backend. Você pode encontrar essas informações no console do GCP.
         </p>

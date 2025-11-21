@@ -22,12 +22,12 @@ export const OpenRouterKeyModal: React.FC<OpenRouterKeyModalProps> = ({ isOpen, 
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-50 flex items-center justify-center"
       onClick={onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-md p-6 border border-var-border-default"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-md p-6 border border-var-border-default"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -36,20 +36,20 @@ export const OpenRouterKeyModal: React.FC<OpenRouterKeyModalProps> = ({ isOpen, 
             <CloseIcon />
           </button>
         </div>
-        
+
         <div className="space-y-4 text-var-fg-muted">
-            <p className="text-sm">
-                Para usar os modelos gratuitos da OpenRouter, por favor, insira sua chave de API. Você pode obter uma gratuitamente no site da OpenRouter. Sua chave será salva com segurança em seu perfil.
-            </p>
-             <div>
-                <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Cole sua chave de API aqui (sk-or-...)"
-                    className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-var-accent/50"
-                />
-            </div>
+          <p className="text-sm">
+            Para usar os modelos gratuitos da OpenRouter, por favor, insira sua chave de API. Você pode obter uma gratuitamente no site da OpenRouter. Sua chave será salva com segurança em seu perfil.
+          </p>
+          <div>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Cole sua chave de API aqui (sk-or-...)"
+              className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-var-accent/50"
+            />
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end">

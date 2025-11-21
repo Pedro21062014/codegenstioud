@@ -25,32 +25,32 @@ interface GithubImportModalProps {
 }
 
 const getFileLanguage = (fileName: string): string => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    switch (extension) {
-        case 'js': return 'javascript';
-        case 'ts': return 'typescript';
-        case 'tsx': return 'typescript';
-        case 'html': return 'html';
-        case 'css': return 'css';
-        case 'json': return 'json';
-        case 'md': return 'markdown';
-        case 'py': return 'python';
-        case 'rb': return 'ruby';
-        case 'go': return 'go';
-        case 'rs': return 'rust';
-        case 'java': return 'java';
-        case 'cs': return 'csharp';
-        case 'php': return 'php';
-        case 'sh': return 'shell';
-        case 'yml':
-        case 'yaml': return 'yaml';
-        case 'dockerfile': return 'dockerfile';
-        case 'sql': return 'sql';
-        case 'graphql': return 'graphql';
-        case 'vue': return 'vue';
-        case 'svelte': return 'svelte';
-        default: return 'plaintext';
-    }
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'js': return 'javascript';
+    case 'ts': return 'typescript';
+    case 'tsx': return 'typescript';
+    case 'html': return 'html';
+    case 'css': return 'css';
+    case 'json': return 'json';
+    case 'md': return 'markdown';
+    case 'py': return 'python';
+    case 'rb': return 'ruby';
+    case 'go': return 'go';
+    case 'rs': return 'rust';
+    case 'java': return 'java';
+    case 'cs': return 'csharp';
+    case 'php': return 'php';
+    case 'sh': return 'shell';
+    case 'yml':
+    case 'yaml': return 'yaml';
+    case 'dockerfile': return 'dockerfile';
+    case 'sql': return 'sql';
+    case 'graphql': return 'graphql';
+    case 'vue': return 'vue';
+    case 'svelte': return 'svelte';
+    default: return 'plaintext';
+  }
 }
 
 export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, onClose, onImport, githubToken, onOpenSettings, userSettings }) => {
@@ -94,7 +94,7 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
         setLoadingRepos(false);
       }
     };
-    
+
     if (isOpen) {
       // Reset state on open
       setSearchTerm('');
@@ -108,87 +108,87 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
   const handleImport = async (repo: GithubRepo) => {
     setImportError(null);
     setImportingRepoName(repo.full_name);
-    
+
     if (!githubToken) {
-        setImportError("Token de acesso do GitHub não encontrado. Por favor, adicione seu token nas configurações.");
-        return;
+      setImportError("Token de acesso do GitHub não encontrado. Por favor, adicione seu token nas configurações.");
+      return;
     }
-    
+
     setIsLoading(true);
 
     try {
-        const headers = {
-            'Authorization': `Bearer ${githubToken}`,
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-        };
-        
-        const repoInfo = { owner: repo.owner.login, repo: repo.name };
+      const headers = {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
 
-        const repoDataResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`, { headers });
-        if (!repoDataResponse.ok) {
-            if (repoDataResponse.status === 404) throw new Error("Repositório não encontrado. Verifique a URL e se o token tem acesso a ele.");
-            if (repoDataResponse.status === 401) throw new Error("Token do GitHub inválido ou expirado.");
-            throw new Error(`Não foi possível buscar os metadados do repositório. Status: ${repoDataResponse.status}`);
+      const repoInfo = { owner: repo.owner.login, repo: repo.name };
+
+      const repoDataResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`, { headers });
+      if (!repoDataResponse.ok) {
+        if (repoDataResponse.status === 404) throw new Error("Repositório não encontrado. Verifique a URL e se o token tem acesso a ele.");
+        if (repoDataResponse.status === 401) throw new Error("Token do GitHub inválido ou expirado.");
+        throw new Error(`Não foi possível buscar os metadados do repositório. Status: ${repoDataResponse.status}`);
+      }
+      const repoData = await repoDataResponse.json();
+      const defaultBranch = repoData.default_branch;
+
+      const branchResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/branches/${defaultBranch}`, { headers });
+      if (!branchResponse.ok) throw new Error(`Não foi possível buscar a branch padrão '${defaultBranch}'.`);
+      const branchData = await branchResponse.json();
+      const treeSha = branchData.commit.commit.tree.sha;
+
+      const treeResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${treeSha}?recursive=1`, { headers });
+      if (!treeResponse.ok) throw new Error('Não foi possível buscar a árvore de arquivos do repositório.');
+      const treeData = await treeResponse.json();
+
+      const fileBlobs = treeData.tree.filter((node: any) => node.type === 'blob' && node.size < 1000000);
+
+      const importedFilesPromises = fileBlobs.map(async (fileNode: any) => {
+        const contentResponse = await fetch(fileNode.url, { headers });
+        if (!contentResponse.ok) {
+          console.warn(`Skipping file ${fileNode.path} due to fetch error.`);
+          return null;
         }
-        const repoData = await repoDataResponse.json();
-        const defaultBranch = repoData.default_branch;
+        const blobData = await contentResponse.json();
 
-        const branchResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/branches/${defaultBranch}`, { headers });
-        if (!branchResponse.ok) throw new Error(`Não foi possível buscar a branch padrão '${defaultBranch}'.`);
-        const branchData = await branchResponse.json();
-        const treeSha = branchData.commit.commit.tree.sha;
+        if (blobData.encoding !== 'base64') {
+          console.warn(`Skipping file ${fileNode.path} due to unsupported encoding: ${blobData.encoding}`);
+          return null;
+        }
 
-        const treeResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${treeSha}?recursive=1`, { headers });
-        if (!treeResponse.ok) throw new Error('Não foi possível buscar a árvore de arquivos do repositório.');
-        const treeData = await treeResponse.json();
-        
-        const fileBlobs = treeData.tree.filter((node: any) => node.type === 'blob' && node.size < 1000000);
+        let content;
+        try {
+          // Use TextDecoder for better UTF-8 support
+          const binaryString = atob(blobData.content);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          content = new TextDecoder('utf-8').decode(bytes);
+        } catch (e) {
+          console.warn(`Skipping file ${fileNode.path} due to decoding error (likely a binary file).`);
+          return null;
+        }
 
-        const importedFilesPromises = fileBlobs.map(async (fileNode: any) => {
-            const contentResponse = await fetch(fileNode.url, { headers });
-            if (!contentResponse.ok) {
-                console.warn(`Skipping file ${fileNode.path} due to fetch error.`);
-                return null;
-            }
-            const blobData = await contentResponse.json();
-            
-            if (blobData.encoding !== 'base64') {
-                console.warn(`Skipping file ${fileNode.path} due to unsupported encoding: ${blobData.encoding}`);
-                return null;
-            }
-            
-            let content;
-            try {
-                // Use TextDecoder for better UTF-8 support
-                const binaryString = atob(blobData.content);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                content = new TextDecoder('utf-8').decode(bytes);
-            } catch (e) {
-                console.warn(`Skipping file ${fileNode.path} due to decoding error (likely a binary file).`);
-                return null;
-            }
+        return {
+          name: fileNode.path,
+          language: getFileLanguage(fileNode.path),
+          content: content,
+        };
+      });
 
-            return {
-                name: fileNode.path,
-                language: getFileLanguage(fileNode.path),
-                content: content,
-            };
-        });
+      const importedFiles = (await Promise.all(importedFilesPromises)).filter((f): f is ProjectFile => f !== null);
 
-        const importedFiles = (await Promise.all(importedFilesPromises)).filter((f): f is ProjectFile => f !== null);
-        
-        onImport(importedFiles);
+      onImport(importedFiles);
 
     } catch (err) {
-        const message = err instanceof Error ? err.message : "Ocorreu um erro desconhecido.";
-        setImportError(`Falha ao importar repositório: ${message}`);
+      const message = err instanceof Error ? err.message : "Ocorreu um erro desconhecido.";
+      setImportError(`Falha ao importar repositório: ${message}`);
     } finally {
-        setIsLoading(false);
-        setImportingRepoName(null);
+      setIsLoading(false);
+      setImportingRepoName(null);
     }
   };
 
@@ -202,7 +202,7 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
     if (isLoading) {
       return (
         <div className="flex flex-col items-center justify-center h-64 text-var-fg-muted">
-           <svg className="animate-spin h-8 w-8 text-var-accent mb-4" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin h-8 w-8 text-var-accent mb-4" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
@@ -231,10 +231,10 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
             className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-var-accent/50"
           />
         </div>
-        
+
         {loadingRepos && <div className="flex items-center justify-center h-64 text-var-fg-muted"><svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Buscando repositórios...</div>}
         {repoError && <p className="text-red-400 text-sm py-4 text-center">{repoError}</p>}
-        
+
         {!loadingRepos && !repoError && (
           <div className="max-h-80 overflow-y-auto border border-var-border-default rounded-md bg-var-bg-muted">
             {filteredRepositories.length > 0 ? (
@@ -267,12 +267,12 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
 
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center"
       onClick={isLoading ? undefined : onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-2xl p-6 border border-var-border-default"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-2xl p-6 border border-var-border-default"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -283,7 +283,7 @@ export const GithubImportModal: React.FC<GithubImportModalProps> = ({ isOpen, on
             <CloseIcon />
           </button>
         </div>
-        
+
         {renderContent()}
 
         {importError && <p className="text-red-400 text-sm mt-4 text-center">{importError}</p>}

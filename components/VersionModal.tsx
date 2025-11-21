@@ -42,14 +42,14 @@ export const VersionModal: React.FC<VersionModalProps> = ({
 
   const loadVersions = () => {
     const projectVersions = ProjectVersionService.getAllVersions(projectName);
-    setVersions(projectVersions.sort((a, b) => 
+    setVersions(projectVersions.sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     ));
   };
 
   const handleSaveVersion = () => {
     if (!projectName) return;
-    
+
     ProjectVersionService.saveVersion(
       projectName,
       currentFiles,
@@ -57,7 +57,7 @@ export const VersionModal: React.FC<VersionModalProps> = ({
       currentEnvVars,
       description || undefined
     );
-    
+
     setDescription('');
     loadVersions();
   };
@@ -82,8 +82,8 @@ export const VersionModal: React.FC<VersionModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-var-bg-subtle border border-var-border-default rounded-lg shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-[#FFF8F0] bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#FFF8F0] border border-var-border-default rounded-lg shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-var-border-default">
           <h2 className="text-lg font-semibold text-var-fg-default">
@@ -131,11 +131,10 @@ export const VersionModal: React.FC<VersionModalProps> = ({
               {versions.map((version) => (
                 <div
                   key={version.id}
-                  className={`p-3 border border-var-border-default rounded-lg transition-colors ${
-                    selectedVersion?.id === version.id
+                  className={`p-3 border border-var-border-default rounded-lg transition-colors ${selectedVersion?.id === version.id
                       ? 'bg-var-accent/10 border-var-accent/30'
                       : 'bg-var-bg-default hover:bg-var-bg-interactive'
-                  }`}
+                    }`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">

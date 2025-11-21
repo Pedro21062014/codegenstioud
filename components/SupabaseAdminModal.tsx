@@ -17,9 +17,9 @@ export const SupabaseAdminModal: React.FC<SupabaseAdminModalProps> = ({ isOpen, 
 
   useEffect(() => {
     if (isOpen) {
-        setProjectUrl(settings.supabase_project_url || '');
-        setAnonKey(settings.supabase_anon_key || '');
-        setServiceKey(settings.supabase_service_key || '');
+      setProjectUrl(settings.supabase_project_url || '');
+      setAnonKey(settings.supabase_anon_key || '');
+      setServiceKey(settings.supabase_service_key || '');
     }
   }, [isOpen, settings]);
 
@@ -35,12 +35,12 @@ export const SupabaseAdminModal: React.FC<SupabaseAdminModalProps> = ({ isOpen, 
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center animate-fadeIn"
       onClick={onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -51,7 +51,7 @@ export const SupabaseAdminModal: React.FC<SupabaseAdminModalProps> = ({ isOpen, 
             <CloseIcon />
           </button>
         </div>
-        
+
         <p className="text-var-fg-muted text-sm mb-4">
           Forneça as credenciais do seu projeto Supabase para permitir que a IA interaja com seu banco de dados. Você pode encontrá-las em seu Painel Supabase em Configurações do Projeto &gt; API.
         </p>
@@ -77,10 +77,10 @@ export const SupabaseAdminModal: React.FC<SupabaseAdminModalProps> = ({ isOpen, 
               className="w-full p-2 bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-2 focus:ring-green-500/50"
             />
           </div>
-           <div className="p-3 bg-red-900/50 border border-red-700/50 rounded-lg">
+          <div className="p-3 bg-red-900/50 border border-red-700/50 rounded-lg">
             <label className="block text-sm font-medium text-red-200 mb-1">Chave Service Role (Secreta)</label>
-             <p className="text-xs text-red-300/80 mb-2">
-                Esta chave concede acesso de administrador total ao seu banco de dados. Manuseie com cuidado. Ela será armazenada com segurança no seu perfil.
+            <p className="text-xs text-red-300/80 mb-2">
+              Esta chave concede acesso de administrador total ao seu banco de dados. Manuseie com cuidado. Ela será armazenada com segurança no seu perfil.
             </p>
             <input
               type="password"

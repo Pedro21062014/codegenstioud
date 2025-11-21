@@ -17,11 +17,11 @@ export const PublishModal: React.FC<LocalRunModalProps> = ({ isOpen, onClose, on
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
-    
+
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
@@ -40,12 +40,12 @@ export const PublishModal: React.FC<LocalRunModalProps> = ({ isOpen, onClose, on
   };
 
   return (
-     <div 
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center animate-fadeIn"
       onClick={onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -56,7 +56,7 @@ export const PublishModal: React.FC<LocalRunModalProps> = ({ isOpen, onClose, on
             <CloseIcon />
           </button>
         </div>
-        
+
         <div className="text-var-fg-muted space-y-4 text-sm">
           {isDesktopApp ? (
             <div>

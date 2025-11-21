@@ -28,12 +28,12 @@ export const NeonModal: React.FC<NeonModalProps> = ({ isOpen, onClose, settings,
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/60 z-40 flex items-center justify-center animate-fadeIn"
+    <div
+      className="fixed inset-0 bg-[#FFF8F0]/60 z-40 flex items-center justify-center animate-fadeIn"
       onClick={onClose}
     >
-      <div 
-        className="bg-var-bg-subtle rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
+      <div
+        className="bg-[#FFF8F0] rounded-lg shadow-xl w-full max-w-lg p-6 border border-var-border-default animate-slideInUp"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
@@ -44,16 +44,16 @@ export const NeonModal: React.FC<NeonModalProps> = ({ isOpen, onClose, settings,
             <CloseIcon />
           </button>
         </div>
-        
+
         <p className="text-var-fg-muted text-sm mb-4">
           Forneça a string de conexão do seu banco de dados Neon (Postgres) para permitir que a IA gere código de backend que interaja com ele. Você pode encontrá-la no painel do seu projeto Neon.
         </p>
 
         <div className="space-y-4">
-           <div className="p-3 bg-red-900/50 border border-red-700/50 rounded-lg">
+          <div className="p-3 bg-red-900/50 border border-red-700/50 rounded-lg">
             <label className="block text-sm font-medium text-red-200 mb-1">String de Conexão</label>
-             <p className="text-xs text-red-300/80 mb-2">
-                Esta string contém suas credenciais de banco de dados. Manuseie com cuidado. Ela será armazenada com segurança em seu perfil.
+            <p className="text-xs text-red-300/80 mb-2">
+              Esta string contém suas credenciais de banco de dados. Manuseie com cuidado. Ela será armazenada com segurança em seu perfil.
             </p>
             <input
               type="password"

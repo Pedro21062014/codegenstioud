@@ -30,6 +30,7 @@ interface SidebarProps {
     onOpenOSMModal: () => void;
     onOpenFirebaseFirestoreModal: () => void;
     onOpenGoogleCloudModal: () => void;
+    onOpenImageStudio: () => void;
     activeFile: string | null;
     onClose?: () => void;
     session: Session | null;
@@ -61,7 +62,7 @@ const ContextMenu: React.FC<{
         >
             <div
                 style={{ top: y, left: x }}
-                className="absolute bg-black border border-var-border-default rounded-md shadow-2xl w-40 py-1.5 animate-fadeIn"
+                className="absolute bg-[#FFF8F0] border border-var-border-default rounded-md shadow-2xl w-40 py-1.5 animate-fadeIn"
                 onClick={(e) => e.stopPropagation()}
             >
                 {actions.map((action, index) => (
@@ -73,8 +74,8 @@ const ContextMenu: React.FC<{
                             onClose();
                         }}
                         className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors ${action.isDestructive
-                            ? 'text-red-400 hover:bg-red-500/10'
-                            : 'text-var-fg-default hover:bg-var-bg-interactive'
+                            ? 'text-red-600 hover:bg-red-500/10'
+                            : 'text-gray-800 hover:bg-var-bg-interactive'
                             }`}
                     >
                         {action.icon}

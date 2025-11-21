@@ -356,13 +356,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                 </svg>
                                             </button>
                                             {showModelDropdown && (
-                                                <div className="absolute left-0 bottom-[60px] w-64 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
+                                                <div className="absolute left-0 bottom-[60px] w-64 bg-[#FFF8F0] border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
                                                     <div className="max-h-64 overflow-y-auto">
                                                         {filteredModels.map((model) => (
                                                             <button
                                                                 key={model.id}
                                                                 onClick={() => handleModelSelect(model.id)}
-                                                                className={`flex items-center w-full px-4 py-3 text-sm text-var-fg-default hover:bg-var-accent/10 rounded-xl gap-3 transition-all hover-lift ${selectedModelId === model.id ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
+                                                                className={`flex items-center w-full px-4 py-3 text-sm text-gray-800 hover:bg-var-accent/10 rounded-xl gap-3 transition-all hover-lift ${selectedModelId === model.id ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
                                                                 title={model.name}
                                                             >
                                                                 {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'gemini-2.5-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
@@ -389,13 +389,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                 </svg>
                                             </button>
                                             {showAppTypeDropdown && (
-                                                <div className="absolute left-0 bottom-[60px] w-56 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
+                                                <div className="absolute left-0 bottom-[60px] w-56 bg-[#FFF8F0] border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
                                                     <div className="max-h-64 overflow-y-auto">
                                                         {APP_TYPES.map((type) => (
                                                             <button
                                                                 key={type.id}
                                                                 onClick={() => handleAppTypeSelect(type.id)}
-                                                                className={`flex items-center w-full px-4 py-3 text-sm text-var-fg-default hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedAppType === type.id ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
+                                                                className={`flex items-center w-full px-4 py-3 text-sm text-gray-800 hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedAppType === type.id ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
                                                                 title={type.name}
                                                             >
                                                                 <span className="font-medium">{type.name}</span>
@@ -420,10 +420,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                 </svg>
                                             </button>
                                             {showGenerationModeDropdown && (
-                                                <div className="absolute left-0 bottom-[60px] w-48 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
+                                                <div className="absolute left-0 bottom-[60px] w-48 bg-[#FFF8F0] border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
                                                     <button
                                                         onClick={() => handleGenerationModeSelect('full')}
-                                                        className={`flex items-center w-full px-4 py-3 text-sm text-var-fg-default hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedGenerationMode === 'full' ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
+                                                        className={`flex items-center w-full px-4 py-3 text-sm text-gray-800 hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedGenerationMode === 'full' ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
                                                         title="Gerar aplicativo completo"
                                                     >
                                                         <span className="font-medium">Completo</span>
@@ -435,7 +435,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                     </button>
                                                     <button
                                                         onClick={() => handleGenerationModeSelect('quick')}
-                                                        className={`flex items-center w-full px-4 py-3 text-sm text-var-fg-default hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedGenerationMode === 'quick' ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
+                                                        className={`flex items-center w-full px-4 py-3 text-sm text-gray-800 hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedGenerationMode === 'quick' ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
                                                         title="Gerar aplicativo no modo rápido"
                                                     >
                                                         <span className="font-medium">Rápido</span>

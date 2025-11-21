@@ -84,7 +84,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
             />
 
             {/* Command Palette Modal */}
-            <div className="relative w-full max-w-2xl mx-4 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl overflow-hidden animate-slideInUp">
+            <div className="relative w-full max-w-2xl mx-4 bg-[#FFF8F0] border-2 border-var-border-default rounded-2xl shadow-2xl overflow-hidden animate-slideInUp">
                 {/* Search Input */}
                 <div className="flex items-center gap-3 p-4 border-b border-var-border-default bg-var-bg-muted">
                     <SearchIcon className="w-5 h-5 text-var-fg-muted" />
@@ -130,8 +130,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
                                             key={command.id}
                                             onClick={() => handleCommandClick(command)}
                                             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all ${isSelected
-                                                ? 'bg-var-accent/20 border border-var-accent/50 text-var-fg-default'
-                                                : 'text-var-fg-default hover:bg-var-bg-interactive'
+                                                ? 'bg-var-accent/20 border border-var-accent/50 text-gray-800'
+                                                : 'text-gray-800 hover:bg-var-bg-interactive'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-3 flex-1 min-w-0">
