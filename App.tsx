@@ -18,6 +18,7 @@ import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
+import { ImageStudioModal } from './components/ImageStudioModal';
 import { VersionModal } from './components/VersionModal';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType, GenerationMode } from './types';
 import { downloadProjectAsZip, getProjectSize, formatFileSize } from './services/projectService';
@@ -223,6 +224,7 @@ const App: React.FC = () => {
   const [isOSMModalOpen, setOSMModalOpen] = useState(false);
   const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
   const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
+  const [isImageStudioModalOpen, setImageStudioModalOpen] = useState(false);
   const [isVersionModalOpen, setVersionModalOpen] = useState(false);
 
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
@@ -1221,6 +1223,7 @@ const App: React.FC = () => {
                   onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                   onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)} onOpenFirebaseFirestoreModal={() => setFirebaseFirestoreModalOpen(true)}
+                  onOpenImageStudio={() => setImageStudioModalOpen(true)}
                   session={session} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
                 />
               </div>
@@ -1236,6 +1239,7 @@ const App: React.FC = () => {
                       onNewProject={handleNewProject} onClose={() => setSidebarOpen(false)}
                       onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                       onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
+                      onOpenImageStudio={() => { setImageStudioModalOpen(true); setSidebarOpen(false); }}
                       session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
                     />
                   </div>
@@ -1356,6 +1360,11 @@ const App: React.FC = () => {
         onClose={() => setFirebaseFirestoreModalOpen(false)}
         settings={userSettings || { id: session?.user?.id || '' }}
         onSave={handleSaveSettings}
+      />
+      <ImageStudioModal
+        isOpen={isImageStudioModalOpen}
+        onClose={() => setImageStudioModalOpen(false)}
+        geminiApiKey={effectiveGeminiApiKey || ''}
       />
       <VersionModal
         isOpen={isVersionModalOpen}
