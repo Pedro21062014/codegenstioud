@@ -64,12 +64,12 @@ const resolvePath = (base: string, relative: string): string => {
 };
 
 interface CodePreviewProps {
-    files: ProjectFile[];
-    onError: (errorMessage: string) => void;
-    theme: Theme;
-    envVars: Record<string, string>;
-    initialPath: string;
-    onNavigate: (path: string) => void; // New prop for internal navigation
+  files: ProjectFile[];
+  onError: (errorMessage: string) => void;
+  theme: Theme;
+  envVars: Record<string, string>;
+  initialPath: string;
+  onNavigate: (path: string) => void; // New prop for internal navigation
 }
 
 export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme, envVars, initialPath, onNavigate }) => {
@@ -81,271 +81,303 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
     let urlsToRevoke: string[] = [];
 
     const generatePreview = async () => {
-        if (files.length === 0) return { src: undefined, urls: new Map(), urlsToRevoke: [] };
-        if (!window.Babel) {
-            onError("Babel.js não foi carregado.");
-            const blob = new Blob([LOADING_HTML], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            return { src: url, urls: new Map(), urlsToRevoke: [url] };
+      if (files.length === 0) return { src: undefined, urls: new Map(), urlsToRevoke: [] };
+      if (!window.Babel) {
+        onError("Babel.js não foi carregado.");
+        const blob = new Blob([LOADING_HTML], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        return { src: url, urls: new Map(), urlsToRevoke: [url] };
+      }
+
+      const allFilesMap = new Map(files.map(f => [f.name, f]));
+      const jsFiles = files.filter(f => /\.(tsx|ts|jsx|js)$/.test(f.name));
+      const cssFiles = files.filter(f => f.name.endsWith('.css'));
+      const imageFiles = files.filter(f => /\.(png|jpe?g|gif|svg|webp)$/i.test(f.name));
+      const htmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.html'));
+
+      let createdUrls: string[] = [];
+      const blobUrls = new Map<string, string>();
+      const importMap = JSON.parse(JSON.stringify(BASE_IMPORT_MAP));
+
+      try {
+        // Process assets (CSS, images)
+        for (const file of [...cssFiles, ...imageFiles]) {
+          let blob: Blob;
+          if (file.language === 'image') {
+            const byteCharacters = atob(file.content);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const mimeType = `image/${file.name.split('.').pop() || 'png'}`;
+            blob = new Blob([byteArray], { type: mimeType });
+          } else {
+            blob = new Blob([file.content], { type: 'text/css' });
+          }
+          const url = URL.createObjectURL(blob);
+          createdUrls.push(url);
+          blobUrls.set(file.name, url);
         }
 
-        const allFilesMap = new Map(files.map(f => [f.name, f]));
-        const jsFiles = files.filter(f => /\.(tsx|ts|jsx|js)$/.test(f.name));
-        const cssFiles = files.filter(f => f.name.endsWith('.css'));
-        const imageFiles = files.filter(f => /\.(png|jpe?g|gif|svg|webp)$/i.test(f.name));
-        const htmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.html'));
+        // Transpile JS/TS files
+        for (const file of jsFiles) {
+          let content = file.content;
+          const importRegex = /(from\s*|import\s*\()(["'])([^"']+)(["'])/g;
+          content = content.replace(importRegex, (match, prefix, openQuote, path, closeQuote) => {
+            const isExternal = Object.keys(BASE_IMPORT_MAP.imports).some(pkg => path === pkg || path.startsWith(pkg + '/'));
+            if (isExternal || path.startsWith('http')) return match;
 
-        let createdUrls: string[] = [];
-        const blobUrls = new Map<string, string>();
-        const importMap = JSON.parse(JSON.stringify(BASE_IMPORT_MAP));
+            let absolutePath = path.startsWith('.') ? resolvePath(file.name, path) : path;
+            if (absolutePath.startsWith('/')) absolutePath = absolutePath.substring(1);
 
-        try {
-             // Process assets (CSS, images)
-            for (const file of [...cssFiles, ...imageFiles]) {
-                let blob: Blob;
-                if (file.language === 'image') {
-                    const byteCharacters = atob(file.content);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const mimeType = `image/${file.name.split('.').pop() || 'png'}`;
-                    blob = new Blob([byteArray], { type: mimeType });
-                } else {
-                    blob = new Blob([file.content], { type: 'text/css' });
-                }
-                const url = URL.createObjectURL(blob);
-                createdUrls.push(url);
-                blobUrls.set(file.name, url);
+            const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
+            for (const ext of extensions) {
+              if (allFilesMap.has(absolutePath + ext)) {
+                return `${prefix}${openQuote}/${absolutePath + ext}${closeQuote}`;
+              }
             }
+            return match;
+          });
 
-            // Transpile JS/TS files
-            for (const file of jsFiles) {
-                let content = file.content;
-                const importRegex = /(from\s*|import\s*\()(["'])([^"']+)(["'])/g;
-                content = content.replace(importRegex, (match, prefix, openQuote, path, closeQuote) => {
-                    const isExternal = Object.keys(BASE_IMPORT_MAP.imports).some(pkg => path === pkg || path.startsWith(pkg + '/'));
-                    if (isExternal || path.startsWith('http')) return match;
+          const transformedCode = window.Babel.transform(content, {
+            presets: ['react', ['typescript', { allExtensions: true, isTSX: file.name.endsWith('.tsx') }]],
+            filename: file.name,
+          }).code;
 
-                    let absolutePath = path.startsWith('.') ? resolvePath(file.name, path) : path;
-                    if (absolutePath.startsWith('/')) absolutePath = absolutePath.substring(1);
+          const blob = new Blob([transformedCode], { type: 'application/javascript' });
+          const url = URL.createObjectURL(blob);
+          createdUrls.push(url);
+          importMap.imports[`/${file.name}`] = url;
+        }
 
-                    const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
-                    for (const ext of extensions) {
-                        if (allFilesMap.has(absolutePath + ext)) {
-                            return `${prefix}${openQuote}/${absolutePath + ext}${closeQuote}`;
+        // Process HTML files
+        const htmlContents: { [key: string]: string } = {};
+        for (const htmlFile of htmlFiles) {
+          let content = htmlFile.content;
+          content = content.replace(/(src|href)=["']((?:\.\/|\/)?)([^"']+)["']/g, (match, attr, prefix, path) => {
+            const resolvedPath = resolvePath(htmlFile.name, path);
+            if (blobUrls.has(resolvedPath)) {
+              return `${attr}="${blobUrls.get(resolvedPath)}"`;
+            }
+            if (allFilesMap.has(resolvedPath) && resolvedPath.endsWith('.html')) {
+              return `${attr}="/${resolvedPath}"`;
+            }
+            return match;
+          });
+
+          const envContent = `window.process = { env: ${JSON.stringify(envVars)} };`;
+
+          const navigationScript = `
+            <script>
+                (function() {
+                    console.log('Initializing navigation script...');
+                    
+                    const baseUrl = window.location.href;
+                    
+                    function navigateToPath(path) {
+                        console.log('Navigating to:', path);
+                        window.parent.postMessage({ 
+                            type: 'navigate', 
+                            path: path 
+                        }, '*');
+                    }
+
+                    function isInternal(url) {
+                        try {
+                            if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../')) {
+                                return true;
+                            }
+                            const parsedUrl = new URL(url, baseUrl);
+                            const currentOrigin = new URL(baseUrl).origin;
+                            return parsedUrl.origin === currentOrigin;
+                        } catch (e) {
+                            return url.startsWith('/') || url.startsWith('./') || url.startsWith('../');
                         }
                     }
-                    return match;
-                });
 
-                const transformedCode = window.Babel.transform(content, {
-                    presets: ['react', ['typescript', { allExtensions: true, isTSX: file.name.endsWith('.tsx') }]],
-                    filename: file.name,
-                }).code;
-                
-                const blob = new Blob([transformedCode], { type: 'application/javascript' });
-                const url = URL.createObjectURL(blob);
-                createdUrls.push(url);
-                importMap.imports[`/${file.name}`] = url;
-            }
-
-            // Process HTML files
-            const htmlContents: { [key: string]: string } = {};
-            for (const htmlFile of htmlFiles) {
-                let content = htmlFile.content;
-                content = content.replace(/(src|href)=["']((?:\.\/|\/)?)([^"']+)["']/g, (match, attr, prefix, path) => {
-                    const resolvedPath = resolvePath(htmlFile.name, path);
-                    if (blobUrls.has(resolvedPath)) {
-                        return `${attr}="${blobUrls.get(resolvedPath)}"`;
-                    }
-                     if (allFilesMap.has(resolvedPath) && resolvedPath.endsWith('.html')) {
-                        return `${attr}="/${resolvedPath}"`;
-                    }
-                    return match;
-                });
-                
-                const envContent = `window.process = { env: ${JSON.stringify(envVars)} };`;
-                const navigationScript = `
-                    <script>
-                        (function() {
-                            console.log('Initializing navigation script...');
+                    function handleNavigation(urlString) {
+                        try {
+                            const url = new URL(urlString, window.location.href);
+                            const currentOrigin = new URL(window.location.href).origin;
                             
-                            // Store the original base URL
-                            const baseUrl = window.location.href;
-                            
-                            // Function to handle internal navigation
-                            function navigateToPath(path) {
-                                console.log('Navigating to:', path);
-                                window.parent.postMessage({ 
-                                    type: 'navigate', 
-                                    path: path 
-                                }, '*');
+                            if (url.origin !== currentOrigin) {
+                                window.open(url.href, '_blank');
+                                return true;
                             }
+                            
+                            const path = url.pathname + url.search + url.hash;
+                            navigateToPath(path);
+                            return true;
+                        } catch (e) {
+                            console.error('Navigation error:', e);
+                            return false;
+                        }
+                    }
 
-                            // Function to check if URL is internal
-                            function isInternal(url) {
+                    document.addEventListener('click', function(event) {
+                        if (event.defaultPrevented) return;
+
+                        const target = event.target;
+                        const link = target.closest('a');
+                        if (link && link.href) {
+                            if (isInternal(link.href)) {
+                                event.preventDefault();
+                                handleNavigation(link.href);
                                 try {
-                                    // If it's a relative path, it's internal
-                                    if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../')) {
-                                        return true;
-                                    }
-                                    
-                                    // For absolute URLs, check if same origin as blob URL
-                                    const parsedUrl = new URL(url, baseUrl);
-                                    const currentOrigin = new URL(baseUrl).origin;
-                                    return parsedUrl.origin === currentOrigin;
-                                } catch (e) {
-                                    // If URL parsing fails, assume it's internal if it looks like a path
-                                    return url.startsWith('/') || url.startsWith('./') || url.startsWith('../');
+                                    const url = new URL(link.href);
+                                    const path = url.pathname + url.search + url.hash;
+                                    history.pushState({}, '', path);
+                                } catch(e) {}
+                            } else {
+                                event.preventDefault();
+                                window.open(link.href, '_blank');
+                            }
+                            return;
+                        }
+
+                        const button = target.closest('button');
+                        if (button) {
+                            const onclick = button.getAttribute('onclick');
+                            if (onclick) {
+                                const hrefMatch = onclick.match(/(?:window\.location|location)\.href\s*=\s*['"]([^'"]+)['"]/);
+                                if (hrefMatch) {
+                                    event.preventDefault();
+                                    handleNavigation(hrefMatch[1]);
+                                    try {
+                                        history.pushState({}, '', hrefMatch[1]);
+                                    } catch(e) {}
                                 }
                             }
+                        }
+                    });
 
-                            // Intercept clicks on all elements
-                            document.addEventListener('click', function(event) {
-                                const target = event.target;
-                                
-                                // Handle links
-                                const link = target.closest('a');
-                                if (link && link.href) {
-                                    console.log('Link clicked:', link.href);
-                                    
-                                    if (isInternal(link.href)) {
-                                        event.preventDefault();
-                                        const url = new URL(link.href);
-                                        const path = url.pathname + url.search + url.hash;
-                                        navigateToPath(path);
+                    document.addEventListener('submit', function(event) {
+                        if (event.defaultPrevented) return;
+                        const form = event.target;
+                        if (form && form.action) {
+                            if (isInternal(form.action)) {
+                                event.preventDefault();
+                                handleNavigation(form.action);
+                            }
+                        }
+                    });
+
+                    const originalPushState = history.pushState;
+                    const originalReplaceState = history.replaceState;
+                    
+                    history.pushState = function(state, title, url) {
+                        const result = originalPushState.apply(this, arguments);
+                        if (url && typeof url === 'string') {
+                            if (isInternal(url)) {
+                                const path = url.startsWith('/') ? url : '/' + url;
+                                navigateToPath(path);
+                            }
+                        }
+                        return result;
+                    };
+                    
+                    history.replaceState = function(state, title, url) {
+                        const result = originalReplaceState.apply(this, arguments);
+                        if (url && typeof url === 'string') {
+                            if (isInternal(url)) {
+                                const path = url.startsWith('/') ? url : '/' + url;
+                                navigateToPath(path);
+                            }
+                        }
+                        return result;
+                    };
+
+                    const originalLocation = window.location;
+                    try {
+                        Object.defineProperty(window, 'location', {
+                            get: function() { return originalLocation; },
+                            set: function(value) {
+                                if (value && typeof value === 'string') {
+                                    if (isInternal(value)) {
+                                        handleNavigation(value);
                                     } else {
-                                        // External link - open in new tab
-                                        event.preventDefault();
-                                        window.open(link.href, '_blank');
-                                    }
-                                    return;
-                                }
-
-                                // Handle buttons with onclick
-                                const button = target.closest('button');
-                                if (button) {
-                                    const onclick = button.getAttribute('onclick');
-                                    if (onclick) {
-                                        console.log('Button onclick:', onclick);
-                                        
-                                        // Simple pattern matching for navigation
-                                        const hrefMatch = onclick.match(/(?:window\.location|location)\.href\s*=\s*['"]([^'"]+)['"]/);
-                                        if (hrefMatch) {
-                                            event.preventDefault();
-                                            const url = hrefMatch[1];
-                                            if (isInternal(url)) {
-                                                navigateToPath(url.startsWith('/') ? url : '/' + url);
-                                            } else {
-                                                window.open(url, '_blank');
-                                            }
-                                        }
+                                        originalLocation.href = value;
                                     }
                                 }
-                            });
-
-                            // Intercept form submissions
-                            document.addEventListener('submit', function(event) {
-                                const form = event.target;
-                                if (form && form.action) {
-                                    console.log('Form submitted:', form.action);
-                                    
-                                    if (isInternal(form.action)) {
-                                        event.preventDefault();
-                                        const url = new URL(form.action);
-                                        const path = url.pathname + url.search;
-                                        navigateToPath(path);
-                                    }
-                                }
-                            });
-
-                            // Override location methods (simplified)
-                            const originalLocation = window.location;
-                            try {
-                                Object.defineProperty(window, 'location', {
-                                    get: function() { return originalLocation; },
-                                    set: function(value) {
-                                        if (value && typeof value === 'string') {
-                                            if (isInternal(value)) {
-                                                navigateToPath(value);
-                                            } else {
-                                                originalLocation.href = value;
-                                            }
-                                        }
-                                    }
-                                });
-                            } catch (e) {
-                                console.warn('Could not override location object:', e);
                             }
+                        });
+                    } catch (e) {
+                        console.warn('Could not override location object:', e);
+                    }
+                })();
+            </script>
+          `;
 
-                            console.log('Navigation script initialized');
-                        })();
-                    </script>
-                `;
-                const scriptContent = `\n                    <script>document.documentElement.className = '${theme}';</script>\n                    <script type="importmap">${JSON.stringify(importMap)}</script>\n                    ${navigationScript}\n                    <script type="module">import '/${jsFiles.find(f => f.name.includes('main') || f.name.includes('index'))?.name}';</script>\n                `;
-                content = content.replace('</head>', `${scriptContent}</head>`);
-                htmlContents[htmlFile.name] = content;
-            }
-            
-            const finalFileUrls = new Map<string, string>();
-            for(const [name, content] of Object.entries(htmlContents)) {
-                const blob = new Blob([content], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                createdUrls.push(url);
-                finalFileUrls.set(`/${name}`, url);
-                if (name === 'index.html') {
-                  finalFileUrls.set('/', url);
-                }
-            }
+          const scriptContent = `
+            <script>document.documentElement.className = '${theme}';</script>
+            <script>${envContent}</script>
+            <script type="importmap">${JSON.stringify(importMap)}</script>
+            ${navigationScript}
+            <script type="module">import '/${jsFiles.find(f => f.name.includes('main') || f.name.includes('index'))?.name}';</script>
+          `;
 
-            // Try to find the requested path first
-            let entryPath = initialPath;
-            let entryUrl = finalFileUrls.get(entryPath);
-            
-            // If not found, try to find any HTML file
-            if (!entryUrl) {
-                // Look for index.html first
-                if (finalFileUrls.has('/index.html')) {
-                    entryPath = '/index.html';
-                    entryUrl = finalFileUrls.get('/index.html');
-                } 
-                // If no index.html, try any other HTML file
-                else if (htmlFiles.length > 0) {
-                    entryPath = `/${htmlFiles[0].name}`;
-                    entryUrl = finalFileUrls.get(entryPath);
-                }
-                // If no HTML files at all, show error
-                else {
-                    const message = `
-                    <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Nenhum arquivo HTML encontrado</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">Não há nenhum arquivo HTML no projeto para visualizar. Adicione um arquivo <code>index.html</code> ou outro arquivo HTML para começar.</p></div></body></html>
-                    `;
-                    const blob = new Blob([message], { type: 'text/html' });
-                    const url = URL.createObjectURL(blob);
-                    return { src: url, urls: new Map(), urlsToRevoke: [url] };
-                }
-            }
-
-            return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
-        
-        } catch (error) {
-            console.error("Error generating preview:", error);
-            const errorMessage = error instanceof Error ? error.message : "Unknown error.";
-            onError(errorMessage);
-            const errorBlob = new Blob([`<div class="p-4 text-red-400 bg-var-bg-subtle"><pre>Erro ao gerar a visualização:\n${errorMessage}</pre></div>`], { type: 'text/html' });
-            const errorUrl = URL.createObjectURL(errorBlob);
-            return { src: errorUrl, urls: new Map(), urlsToRevoke: [...createdUrls, errorUrl] };
+          content = content.replace('</head>', `${scriptContent}</head>`);
+          htmlContents[htmlFile.name] = content;
         }
+
+        const finalFileUrls = new Map<string, string>();
+        for (const [name, content] of Object.entries(htmlContents)) {
+          const blob = new Blob([content], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          createdUrls.push(url);
+          finalFileUrls.set(`/${name}`, url);
+          if (name === 'index.html') {
+            finalFileUrls.set('/', url);
+          }
+        }
+
+        // Try to find the requested path first
+        let entryPath = initialPath;
+        let entryUrl = finalFileUrls.get(entryPath);
+
+        // If not found, try to find any HTML file
+        if (!entryUrl) {
+          // Look for index.html first
+          if (finalFileUrls.has('/index.html')) {
+            entryPath = '/index.html';
+            entryUrl = finalFileUrls.get('/index.html');
+          }
+          // If no index.html, try any other HTML file
+          else if (htmlFiles.length > 0) {
+            entryPath = `/${htmlFiles[0].name}`;
+            entryUrl = finalFileUrls.get(entryPath);
+          }
+          // If no HTML files at all, show error
+          else {
+            const message = `
+                    <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Nenhum arquivo HTML encontrado</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">Não há nenhum arquivo HTML no projeto para visualizar. Adicione um arquivo <code>index.html</code> ou outro arquivo HTML para começar.</p></div></body></html>
+                `;
+            const blob = new Blob([message], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            return { src: url, urls: new Map(), urlsToRevoke: [url] };
+          }
+        }
+
+        return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
+
+      } catch (error) {
+        console.error("Error generating preview:", error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error.";
+        onError(errorMessage);
+        const errorBlob = new Blob([`<div class="p-4 text-red-400 bg-var-bg-subtle"><pre>Erro ao gerar a visualização:\n${errorMessage}</pre></div>`], { type: 'text/html' });
+        const errorUrl = URL.createObjectURL(errorBlob);
+        return { src: errorUrl, urls: new Map(), urlsToRevoke: [...createdUrls, errorUrl] };
+      }
     };
 
     setIframeSrc(undefined);
 
     generatePreview().then(result => {
-        setFileUrls(result.urls);
-        const urlToShow = result.urls.get(initialPath) || result.urls.get('/') || result.src;
-        setIframeSrc(urlToShow);
-        urlsToRevoke = result.urlsToRevoke;
+      setFileUrls(result.urls);
+      const urlToShow = result.urls.get(initialPath) || result.urls.get('/') || result.src;
+      setIframeSrc(urlToShow);
+      urlsToRevoke = result.urlsToRevoke;
     });
 
     return () => {
@@ -354,9 +386,9 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
   }, [files, onError, theme, envVars, onNavigate]);
 
   useEffect(() => {
-    const newSrc = fileUrls.get(initialPath) || fileUrls.get('/');
+    const newSrc = fileUrls.get(initialPath) || fileUrls.get('/index.html') || fileUrls.get('/');
     if (newSrc && newSrc !== iframeSrc) {
-        setIframeSrc(newSrc);
+      setIframeSrc(newSrc);
     }
   }, [initialPath, fileUrls, iframeSrc]);
 
@@ -367,8 +399,11 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'navigate') {
         const path = event.data.path;
-        if (fileUrls.has(path)) {
-          onNavigate(path);
+        console.log('Received navigation message:', path);
+        // Normalize path to handle both /index.html and /
+        const normalizedPath = path === '/index.html' ? '/' : path;
+        if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
+          onNavigate(normalizedPath);
         }
       }
     };
@@ -383,14 +418,16 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
           const anchor = target.closest('a');
 
           if (anchor && anchor.href) {
-            const url = new URL(anchor.href);
+            const url = new URL(anchor.href, iframeSrc);
             const currentOrigin = new URL(iframeSrc!).origin;
 
             if (url.origin === currentOrigin) {
-              const path = url.pathname;
-              if (fileUrls.has(path)) {
+              const path = url.pathname + url.search + url.hash;
+              // Normalize path to handle both /index.html and /
+              const normalizedPath = path === '/index.html' ? '/' : path;
+              if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
                 event.preventDefault();
-                onNavigate(path);
+                onNavigate(normalizedPath);
               }
             }
           }
@@ -404,9 +441,11 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
               const locationMatch = onclick.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/);
               if (locationMatch) {
                 const path = locationMatch[1];
-                if (fileUrls.has(path) || fileUrls.has('/' + path)) {
+                // Normalize path to handle both /index.html and /
+                const normalizedPath = path === '/index.html' ? '/' : (path.startsWith('/') ? path : '/' + path);
+                if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
                   event.preventDefault();
-                  onNavigate(path.startsWith('/') ? path : '/' + path);
+                  onNavigate(normalizedPath);
                 }
               }
             }
@@ -420,10 +459,12 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
             const currentOrigin = new URL(iframeSrc!).origin;
 
             if (url.origin === currentOrigin) {
-              const path = url.pathname;
-              if (fileUrls.has(path)) {
+              const path = url.pathname + url.search + url.hash;
+              // Normalize path to handle both /index.html and /
+              const normalizedPath = path === '/index.html' ? '/' : path;
+              if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
                 event.preventDefault();
-                onNavigate(path);
+                onNavigate(normalizedPath);
               }
             }
           }
