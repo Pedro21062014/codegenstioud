@@ -356,7 +356,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                 </svg>
                                             </button>
                                             {showModelDropdown && (
-                                                <div className="absolute left-0 bottom-[60px] w-64 bg-var-bg-subtle/95 backdrop-blur-xl border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
+                                                <div className="absolute left-0 bottom-[60px] w-64 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
                                                     <div className="max-h-64 overflow-y-auto">
                                                         {filteredModels.map((model) => (
                                                             <button
@@ -389,7 +389,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                 </svg>
                                             </button>
                                             {showAppTypeDropdown && (
-                                                <div className="absolute left-0 bottom-[60px] w-56 bg-var-bg-subtle/95 backdrop-blur-xl border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
+                                                <div className="absolute left-0 bottom-[60px] w-56 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
                                                     <div className="max-h-64 overflow-y-auto">
                                                         {APP_TYPES.map((type) => (
                                                             <button
@@ -420,7 +420,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                 </svg>
                                             </button>
                                             {showGenerationModeDropdown && (
-                                                <div className="absolute left-0 bottom-[60px] w-48 bg-var-bg-subtle/95 backdrop-blur-xl border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
+                                                <div className="absolute left-0 bottom-[60px] w-48 bg-black border-2 border-var-border-default rounded-2xl shadow-2xl p-2 z-50">
                                                     <button
                                                         onClick={() => handleGenerationModeSelect('full')}
                                                         className={`flex items-center w-full px-4 py-3 text-sm text-var-fg-default hover:bg-var-accent/10 rounded-xl transition-all hover-lift ${selectedGenerationMode === 'full' ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}

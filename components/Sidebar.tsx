@@ -61,7 +61,7 @@ const ContextMenu: React.FC<{
         >
             <div
                 style={{ top: y, left: x }}
-                className="absolute bg-var-bg-subtle border border-var-border-default rounded-md shadow-2xl w-40 py-1.5 animate-fadeIn"
+                className="absolute bg-black border border-var-border-default rounded-md shadow-2xl w-40 py-1.5 animate-fadeIn"
                 onClick={(e) => e.stopPropagation()}
             >
                 {actions.map((action, index) => (
