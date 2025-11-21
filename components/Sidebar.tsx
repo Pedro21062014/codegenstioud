@@ -30,7 +30,6 @@ interface SidebarProps {
     onOpenOSMModal: () => void;
     onOpenFirebaseFirestoreModal: () => void;
     onOpenGoogleCloudModal: () => void;
-    onOpenImageStudio: () => void;
     activeFile: string | null;
     onClose?: () => void;
     session: Session | null;
@@ -171,7 +170,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onNewProject,
     onSaveProject,
     onOpenProjects,
-    onOpenImageStudio,
     onRenameFile,
     onDeleteFile,
     onOpenStripeModal,
@@ -254,11 +252,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <Tooltip text="Meus Projetos">
                             <button type="button" aria-label="Meus Projetos" onClick={onOpenProjects} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                                 <ProjectsIcon />
-                            </button>
-                        </Tooltip>
-                        <Tooltip text="Gerador de Imagem">
-                            <button type="button" aria-label="Gerador de Imagem" onClick={onOpenImageStudio} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
-                                <ImageIcon />
                             </button>
                         </Tooltip>
                     </div>
