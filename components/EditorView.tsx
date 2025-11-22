@@ -5,6 +5,8 @@ import { TerminalView } from './TerminalView';
 import { StatusBar } from './StatusBar';
 import { CommandPalette, Command } from './CommandPalette';
 import { getFileIcon } from './FileIconHelper';
+import { ShareModal } from './ShareModal';
+import { deployToCodeSandbox } from '../services/codesandbox';
 import {
   CloseIcon,
   SunIcon,
@@ -14,6 +16,7 @@ import {
   KeyIcon,
   RefreshIcon,
   VersionIcon,
+  ShareIcon,
   MinimapIcon,
   WordWrapIcon,
   ZoomInIcon,
@@ -163,14 +166,16 @@ const Toast: React.FC<{ message: string; onFix: () => void; onClose: () => void 
   );
 };
 
+
 interface BrowserFrameProps {
   children: React.ReactNode;
   url: string;
   onUrlChange: (newUrl: string) => void;
   onRefresh: () => void;
+  onShare?: () => void;
 }
 
-const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange, onRefresh }) => {
+const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange, onRefresh, onShare }) => {
   const [inputValue, setInputValue] = useState(url);
 
   useEffect(() => {
@@ -212,6 +217,16 @@ const BrowserFrame: React.FC<BrowserFrameProps> = ({ children, url, onUrlChange,
         >
           <RefreshIcon className="w-4 h-4" />
         </button>
+        {onShare && (
+          <button
+            onClick={onShare}
+            className="p-1 rounded-md text-var-fg-muted hover:bg-var-bg-interactive"
+            title="Compartilhar online"
+            aria-label="Compartilhar online"
+          >
+            <ShareIcon className="w-4 h-4" />
+          </button>
+        )}
       </div>
       <div className="flex-grow overflow-auto">
         {children}
@@ -227,6 +242,8 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
   const [terminalHeight, setTerminalHeight] = useState('200px');
   const [isTerminalVisible, setIsTerminalVisible] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
   const [editorOptions, setEditorOptions] = useState({
     minimap: false,
     wordWrap: 'on' as 'on' | 'off',
@@ -246,6 +263,18 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
   const handleRefresh = () => {
     setPreviewKey(Date.now());
   }
+
+  const handleShare = async () => {
+    setIsSharing(true);
+    try {
+      const url = await deployToCodeSandbox(files);
+      setShareUrl(url);
+    } catch (error) {
+      onError('Erro ao compartilhar projeto: ' + (error as Error).message);
+    } finally {
+      setIsSharing(false);
+    }
+  };
 
   const handleTerminalCommand = (command: string) => {
     console.log('Terminal command executed:', command);
@@ -481,7 +510,7 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
         )}
 
         {viewMode === 'preview' && (
-          <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh}>
+          <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh} onShare={handleShare}>
             <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} onNavigate={(path) => {
               setPreviewUrl(path);
               // Update the active file if navigating to an HTML file
@@ -579,6 +608,13 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
           }
         ]}
       />
+
+      {shareUrl && (
+        <ShareModal
+          url={shareUrl}
+          onClose={() => setShareUrl(null)}
+        />
+      )}
     </div>
   );
 };

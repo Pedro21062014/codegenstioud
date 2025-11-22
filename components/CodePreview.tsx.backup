@@ -160,101 +160,71 @@ export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme,
             if (blobUrls.has(resolvedPath)) {
               return `${attr}="${blobUrls.get(resolvedPath)}"`;
             }
-            return match;
+            if (allFilesMap.has(resolvedPath) && resolvedPath.endsWith('.html')) {
+
+              const finalFileUrls = new Map<string, string>();
+              for (const [name, content] of Object.entries(htmlContents)) {
+                const blob = new Blob([content], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                createdUrls.push(url);
+                finalFileUrls.set(`/${name}`, url);
+                if (name === 'index.html') {
+                  finalFileUrls.set('/', url);
+                }
+              }
+
+              // Try to find the requested path first
+              let entryPath = initialPath;
+              let entryUrl = finalFileUrls.get(entryPath);
+
+              // If not found, try to find any HTML file
+              if (!entryUrl) {
+                // Look for index.html first
+                if (finalFileUrls.has('/index.html')) {
+                  entryPath = '/index.html';
+                  entryUrl = finalFileUrls.get('/index.html');
+                }
+                // If no index.html, try any other HTML file
+                else if (htmlFiles.length > 0) {
+                  entryPath = `/${htmlFiles[0].name}`;
+                  entryUrl = finalFileUrls.get(entryPath);
+                }
+                // If no HTML files at all, show error
+                else {
+                  const message = `
+                    <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Nenhum arquivo HTML encontrado</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">Não há nenhum arquivo HTML no projeto para visualizar. Adicione um arquivo <code>index.html</code> ou outro arquivo HTML para começar.</p></div></body></html>
+                    `;
+                  const blob = new Blob([message], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  return { src: url, urls: new Map(), urlsToRevoke: [url] };
+                }
+              }
+
+              return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
+
+            } catch (error) {
+              console.error("Error generating preview:", error);
+              const errorMessage = error instanceof Error ? error.message : "Unknown error.";
+              onError(errorMessage);
+              const errorBlob = new Blob([`<div class="p-4 text-red-400 bg-var-bg-subtle"><pre>Erro ao gerar a visualização:\n${errorMessage}</pre></div>`], { type: 'text/html' });
+              const errorUrl = URL.createObjectURL(errorBlob);
+              return { src: errorUrl, urls: new Map(), urlsToRevoke: [...createdUrls, errorUrl] };
+            }
+          };
+
+          setIframeSrc(undefined);
+
+          generatePreview().then(result => {
+            setFileUrls(result.urls);
+            const urlToShow = result.urls.get(initialPath) || result.urls.get('/') || result.src;
+            setIframeSrc(urlToShow);
+            urlsToRevoke = result.urlsToRevoke;
           });
 
-          htmlContents[htmlFile.name] = content;
-        }
-
-        // Create final URLs for HTML files
-        const finalFileUrls = new Map<string, string>();
-        for (const [name, content] of Object.entries(htmlContents)) {
-          const blob = new Blob([content], { type: 'text/html' });
-          const url = URL.createObjectURL(blob);
-          createdUrls.push(url);
-          finalFileUrls.set(`/${name}`, url);
-          if (name === 'index.html') {
-            finalFileUrls.set('/', url);
-          }
-        }
-
-        // Try to find the requested path first
-        let entryPath = initialPath;
-        let entryUrl = finalFileUrls.get(entryPath);
-
-        // If not found, try to find any HTML file
-        if (!entryUrl) {
-          // Look for index.html first
-          if (finalFileUrls.has('/index.html')) {
-            entryPath = '/index.html';
-            entryUrl = finalFileUrls.get('/index.html');
-          }
-          // If no index.html, try any other HTML file
-          else if (htmlFiles.length > 0) {
-            entryPath = `/${htmlFiles[0].name}`;
-            entryUrl = finalFileUrls.get(entryPath);
-          }
-          // If no HTML files at all, show error
-          else {
-            const message = `
-              <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Nenhum arquivo HTML encontrado</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">Não há nenhum arquivo HTML no projeto para visualizar. Adicione um arquivo <code>index.html</code> ou outro arquivo HTML para começar.</p></div></body></html>
-            `;
-            const blob = new Blob([message], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            return { src: url, urls: new Map(), urlsToRevoke: [url] };
-          }
-        }
-
-        return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
-      } catch (error) {
-        console.error("Erro ao gerar prévia:", error);
-        onError("Falha ao gerar prévia do código");
-        
-        // Return a simple error page
-        const errorMessage = `
-          <!DOCTYPE html>
-          <html lang="pt-BR" class="dark">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <link rel="preconnect" href="https://fonts.googleapis.com">
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-          </head>
-          <body style="margin: 0;">
-            <div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Erro na Pré-visualização</h2>
-              <p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">
-                Ocorreu um erro ao tentar gerar a prévia do seu código. Verifique o console para mais detalhes.
-              </p>
-            </div>
-          </body>
-          </html>
-        `;
-        const blob = new Blob([errorMessage], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        return { src: url, urls: new Map(), urlsToRevoke: [url] };
-      }
-    };
-
-    setIframeSrc(undefined);
-
-    generatePreview().then(result => {
-      setFileUrls(result.urls);
-      const urlToShow = result.urls.get(initialPath) || result.urls.get('/') || result.src;
-      setIframeSrc(urlToShow);
-      urlsToRevoke = result.urlsToRevoke;
-    });
-
-    return () => {
-      urlsToRevoke.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [files, onError, theme, envVars, onNavigate]);
+          return () => {
+            urlsToRevoke.forEach(url => URL.revokeObjectURL(url));
+          };
+        }, [files, onError, theme, envVars, onNavigate]);
 
   useEffect(() => {
     const newSrc = fileUrls.get(initialPath) || fileUrls.get('/index.html') || fileUrls.get('/');
