@@ -512,12 +512,24 @@ export const EditorView: React.FC<EditorViewProps> = ({ files, activeFile, proje
         {viewMode === 'preview' && (
           <BrowserFrame url={previewUrl} onUrlChange={setPreviewUrl} onRefresh={handleRefresh} onShare={handleShare}>
             <CodePreview key={previewKey} files={files} onError={onError} theme={theme} envVars={envVars} initialPath={previewUrl} onNavigate={(path) => {
+              console.log('[EditorView] Navigation callback received:', path);
               setPreviewUrl(path);
-              // Update the active file if navigating to an HTML file
-              const fileName = path.startsWith('/') ? path.substring(1) : path;
-              const htmlFile = files.find(f => f.name === fileName);
-              if (htmlFile) {
-                onFileSelect(fileName);
+
+              // Only update active file if navigating to a different HTML file (not just hash changes)
+              if (!path.includes('#') || path.split('#')[0] !== previewUrl.split('#')[0]) {
+                const pathWithoutHash = path.split('#')[0];
+                const fileName = pathWithoutHash.startsWith('/') ? pathWithoutHash.substring(1) : pathWithoutHash;
+
+                // Check for exact file match or index.html
+                let htmlFile = files.find(f => f.name === fileName);
+                if (!htmlFile && (pathWithoutHash === '/' || pathWithoutHash === '')) {
+                  htmlFile = files.find(f => f.name === 'index.html');
+                }
+
+                if (htmlFile) {
+                  console.log('[EditorView] Switching to file:', htmlFile.name);
+                  onFileSelect(htmlFile.name);
+                }
               }
             }} />
           </BrowserFrame>

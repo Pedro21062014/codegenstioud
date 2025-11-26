@@ -2,408 +2,392 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ProjectFile, Theme } from '../types';
 import { ExternalLinkIcon } from './Icons';
 
-declare global {
-  interface Window {
-    Babel: any;
-  }
-}
-
-const LOADING_HTML = `
-<!DOCTYPE html>
-<html lang="pt-BR" class="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-  </style>
-</head>
-<body class="bg-gray-900 text-gray-300">
-  <div class="flex flex-col items-center justify-center h-screen">
-    <svg class="animate-spin h-8 w-8 text-blue-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-    <p class="text-lg font-medium">Construindo sua aplicação...</p>
-  </div>
-</body>
-</html>
-`;
-
-const BASE_IMPORT_MAP = {
-  imports: {
-    "react": "https://esm.sh/react@^19.1.0",
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "react-dom": "https://esm.sh/react-dom@^19.1.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.44.4",
-  }
-};
-
-
-const resolvePath = (base: string, relative: string): string => {
-  const stack = base.split('/');
-  stack.pop();
-  const parts = relative.split('/');
-
-  for (const part of parts) {
-    if (part === '.') continue;
-    if (part === '..') {
-      stack.pop();
-    } else {
-      stack.push(part);
-    }
-  }
-  return stack.join('/');
-};
-
 interface CodePreviewProps {
   files: ProjectFile[];
   onError: (errorMessage: string) => void;
   theme: Theme;
   envVars: Record<string, string>;
   initialPath: string;
-  onNavigate: (path: string) => void; // New prop for internal navigation
+  onNavigate: (path: string) => void;
 }
 
-export const CodePreview: React.FC<CodePreviewProps> = ({ files, onError, theme, envVars, initialPath, onNavigate }) => {
-  const [iframeSrc, setIframeSrc] = useState<string | undefined>(undefined);
-  const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
-  const iframeRef = useRef<HTMLIFrameElement>(null); // Ref for the iframe
+export const CodePreview: React.FC<CodePreviewProps> = ({ files, initialPath, onNavigate }) => {
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [useElectron, setUseElectron] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const blobUrlsRef = useRef<string[]>([]);
 
+  // Check if running in Electron
   useEffect(() => {
-    let urlsToRevoke: string[] = [];
+    const isElectron = !!(window.electronAPI);
+    setUseElectron(isElectron);
+    console.log('[Preview] Running in:', isElectron ? 'Electron' : 'Browser');
 
-    const generatePreview = async () => {
-      if (files.length === 0) return { src: undefined, urls: new Map(), urlsToRevoke: [] };
-      if (!window.Babel) {
-        onError("Babel.js não foi carregado.");
-        const blob = new Blob([LOADING_HTML], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        return { src: url, urls: new Map(), urlsToRevoke: [url] };
-      }
+    if (isElectron) {
+      window.electronAPI!.invoke('get-preview-port').then((port: number) => {
+        console.log('[Preview] Electron server port:', port);
+        setIsLoading(false);
+      }).catch((err: Error) => {
+        console.error('[Preview] Failed to get server port:', err);
+        setError('Falha ao iniciar o servidor de preview');
+        setIsLoading(false);
+      });
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
 
-      const allFilesMap = new Map(files.map(f => [f.name, f]));
-      const jsFiles = files.filter(f => /\.(tsx|ts|jsx|js)$/.test(f.name));
-      const cssFiles = files.filter(f => f.name.endsWith('.css'));
-      const imageFiles = files.filter(f => /\.(png|jpe?g|gif|svg|webp)$/i.test(f.name));
-      const htmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.html'));
+  // Create blob URL for browser preview
+  const createBrowserPreview = (files: ProjectFile[]): string => {
+    blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    blobUrlsRef.current = [];
 
-      let createdUrls: string[] = [];
-      const blobUrls = new Map<string, string>();
-      const importMap = JSON.parse(JSON.stringify(BASE_IMPORT_MAP));
+    console.log('[Preview Browser] Total files:', files.length);
+    console.log('[Preview Browser] File names:', files.map(f => f.name));
 
-      try {
-        // Process assets (CSS, images)
-        for (const file of [...cssFiles, ...imageFiles]) {
-          let blob: Blob;
-          if (file.language === 'image') {
-            const byteCharacters = atob(file.content);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const mimeType = `image/${file.name.split('.').pop() || 'png'}`;
-            blob = new Blob([byteArray], { type: mimeType });
-          } else {
-            blob = new Blob([file.content], { type: 'text/css' });
-          }
-          const url = URL.createObjectURL(blob);
-          createdUrls.push(url);
-          blobUrls.set(file.name, url);
-        }
-
-        // Transpile JS/TS files
-        for (const file of jsFiles) {
-          let content = file.content;
-          const importRegex = /(from\s*|import\s*\()(["'])([^"']+)(["'])/g;
-          content = content.replace(importRegex, (match, prefix, openQuote, path, closeQuote) => {
-            const isExternal = Object.keys(BASE_IMPORT_MAP.imports).some(pkg => path === pkg || path.startsWith(pkg + '/'));
-            if (isExternal || path.startsWith('http')) return match;
-
-            let absolutePath = path.startsWith('.') ? resolvePath(file.name, path) : path;
-            if (absolutePath.startsWith('/')) absolutePath = absolutePath.substring(1);
-
-            const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
-            for (const ext of extensions) {
-              if (allFilesMap.has(absolutePath + ext)) {
-                return `${prefix}${openQuote}/${absolutePath + ext}${closeQuote}`;
-              }
-            }
-            return match;
-          });
-
-          const transformedCode = window.Babel.transform(content, {
-            presets: ['react', ['typescript', { allExtensions: true, isTSX: file.name.endsWith('.tsx') }]],
-            filename: file.name,
-          }).code;
-
-          const blob = new Blob([transformedCode], { type: 'application/javascript' });
-          const url = URL.createObjectURL(blob);
-          createdUrls.push(url);
-          importMap.imports[`/${file.name}`] = url;
-        }
-
-        // Process HTML files
-        const htmlContents: { [key: string]: string } = {};
-        for (const htmlFile of htmlFiles) {
-          let content = htmlFile.content;
-          content = content.replace(/(src|href)=["']((?:\.\/|\/)?)([^"']+)["']/g, (match, attr, prefix, path) => {
-            const resolvedPath = resolvePath(htmlFile.name, path);
-            if (blobUrls.has(resolvedPath)) {
-              return `${attr}="${blobUrls.get(resolvedPath)}"`;
-            }
-            return match;
-          });
-
-          htmlContents[htmlFile.name] = content;
-        }
-
-        // Create final URLs for HTML files
-        const finalFileUrls = new Map<string, string>();
-        for (const [name, content] of Object.entries(htmlContents)) {
-          const blob = new Blob([content], { type: 'text/html' });
-          const url = URL.createObjectURL(blob);
-          createdUrls.push(url);
-          finalFileUrls.set(`/${name}`, url);
-          if (name === 'index.html') {
-            finalFileUrls.set('/', url);
-          }
-        }
-
-        // Try to find the requested path first
-        let entryPath = initialPath;
-        let entryUrl = finalFileUrls.get(entryPath);
-
-        // If not found, try to find any HTML file
-        if (!entryUrl) {
-          // Look for index.html first
-          if (finalFileUrls.has('/index.html')) {
-            entryPath = '/index.html';
-            entryUrl = finalFileUrls.get('/index.html');
-          }
-          // If no index.html, try any other HTML file
-          else if (htmlFiles.length > 0) {
-            entryPath = `/${htmlFiles[0].name}`;
-            entryUrl = finalFileUrls.get(entryPath);
-          }
-          // If no HTML files at all, show error
-          else {
-            const message = `
-              <!DOCTYPE html><html lang="pt-BR" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body style="margin: 0;"><div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path><line x1="9" y1="14" x2="15" y2="14"></line></svg><h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Nenhum arquivo HTML encontrado</h2><p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">Não há nenhum arquivo HTML no projeto para visualizar. Adicione um arquivo <code>index.html</code> ou outro arquivo HTML para começar.</p></div></body></html>
-            `;
-            const blob = new Blob([message], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            return { src: url, urls: new Map(), urlsToRevoke: [url] };
-          }
-        }
-
-        return { src: entryUrl, urls: finalFileUrls, urlsToRevoke: createdUrls };
-      } catch (error) {
-        console.error("Erro ao gerar prévia:", error);
-        onError("Falha ao gerar prévia do código");
-        
-        // Return a simple error page
-        const errorMessage = `
-          <!DOCTYPE html>
-          <html lang="pt-BR" class="dark">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <link rel="preconnect" href="https://fonts.googleapis.com">
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-          </head>
-          <body style="margin: 0;">
-            <div style="font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #c9d1d9; background-color: #0d1117; padding: 2rem; text-align: center; box-sizing: border-box;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #484f58; margin-bottom: 1rem;">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Erro na Pré-visualização</h2>
-              <p style="color: #8b949e; max-width: 450px; line-height: 1.5; margin: 0;">
-                Ocorreu um erro ao tentar gerar a prévia do seu código. Verifique o console para mais detalhes.
-              </p>
-            </div>
-          </body>
-          </html>
-        `;
-        const blob = new Blob([errorMessage], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        return { src: url, urls: new Map(), urlsToRevoke: [url] };
-      }
-    };
-
-    setIframeSrc(undefined);
-
-    generatePreview().then(result => {
-      setFileUrls(result.urls);
-      const urlToShow = result.urls.get(initialPath) || result.urls.get('/') || result.src;
-      setIframeSrc(urlToShow);
-      urlsToRevoke = result.urlsToRevoke;
+    // Find index.html - check if filename ends with index.html (handles paths like dir/index.html)
+    const indexFile = files.find(f => {
+      const lowerName = f.name.toLowerCase();
+      return lowerName === 'index.html' ||
+        lowerName.endsWith('/index.html') ||
+        lowerName.endsWith('\\index.html');
     });
 
-    return () => {
-      urlsToRevoke.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [files, onError, theme, envVars, onNavigate]);
-
-  useEffect(() => {
-    const newSrc = fileUrls.get(initialPath) || fileUrls.get('/index.html') || fileUrls.get('/');
-    if (newSrc && newSrc !== iframeSrc) {
-      setIframeSrc(newSrc);
+    if (!indexFile) {
+      console.error('[Preview Browser] ❌ index.html NOT FOUND!');
+      console.error('[Preview Browser] Available files:', files.map(f => `"${f.name}"`).join(', '));
+      return '';
     }
-  }, [initialPath, fileUrls, iframeSrc]);
 
+    console.log('[Preview Browser] ✅ Found index.html:', indexFile.name);
+
+    // Create a modified HTML that includes all resources inline
+    let html = indexFile.content;
+
+    // Inject navigation interceptor script
+    const navigationScript = `
+      <script>
+        // Intercept navigation to handle multi-page apps in blob URLs
+        (function() {
+          console.log('[Preview Nav] Navigation interceptor loaded');
+          
+          // Intercept link clicks
+          document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.href) {
+              try {
+                // Get the href attribute directly (not the resolved URL)
+                const hrefAttr = link.getAttribute('href');
+                console.log('[Preview Nav] Link clicked, href attr:', hrefAttr);
+                
+                if (!hrefAttr) return;
+                
+                // Check if it's a relative link to an HTML file
+                if (hrefAttr.endsWith('.html') || hrefAttr === '/' || hrefAttr === 'index.html') {
+                  e.preventDefault();
+                  console.log('[Preview Nav] Intercepted navigation to:', hrefAttr);
+                  
+                  // Send message to parent to load new page
+                  window.parent.postMessage({
+                    type: 'navigate',
+                    path: hrefAttr
+                  }, '*');
+                }
+              } catch (err) {
+                console.error('[Preview Nav] Error intercepting link:', err);
+              }
+            }
+          }, true);
+        })();
+      </script>
+    `;
+
+    // Inject CSS files
+    files.filter(f => f.name.endsWith('.css')).forEach(cssFile => {
+      console.log('[Preview Browser] Injecting CSS:', cssFile.name);
+      const cssTag = `<style data-file="${cssFile.name}">\n${cssFile.content}\n</style>`;
+      if (html.includes('</head>')) {
+        html = html.replace('</head>', `${cssTag}\n</head>`);
+      } else {
+        html = cssTag + html;
+      }
+    });
+
+    // Inject JS files
+    files.filter(f => f.name.endsWith('.js')).forEach(jsFile => {
+      console.log('[Preview Browser] Injecting JS:', jsFile.name);
+      const scriptTag = `<script data-file="${jsFile.name}">\n${jsFile.content}\n</script>`;
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', `${scriptTag}\n</body>`);
+      } else {
+        html = html + scriptTag;
+      }
+    });
+
+    // Inject navigation script at the end
+    if (html.includes('</body>')) {
+      html = html.replace('</body>', `${navigationScript}\n</body>`);
+    } else {
+      html = html + navigationScript;
+    }
+
+    // Create blob URL
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    blobUrlsRef.current.push(url);
+
+    console.log('[Preview Browser] ✅ Created blob URL:', url);
+    return url;
+  };
+
+  // Listen for navigation messages from iframe
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !iframeSrc) return;
+    if (useElectron) return;
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'navigate') {
-        const path = event.data.path;
-        console.log('Received navigation message:', path);
-        // Normalize path to handle both /index.html and /
-        const normalizedPath = path === '/index.html' ? '/' : path;
-        if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
-          onNavigate(normalizedPath);
+      if (event.data.type === 'navigate') {
+        const path = event.data.path as string;
+        console.log('[Preview Browser] Received navigation request:', path);
+
+        // Find the HTML file to load
+        let targetFile = path;
+        if (path === '/' || path === '') {
+          targetFile = 'index.html';
+        } else if (path.startsWith('/')) {
+          targetFile = path.substring(1);
         }
-      }
-    };
 
-    const handleLoad = () => {
-      try {
-        const iframeWindow = iframe.contentWindow;
-        if (!iframeWindow) return;
+        // Find file (with or without directory path)
+        const htmlFile = files.find(f => {
+          const lowerName = f.name.toLowerCase();
+          const lowerTarget = targetFile.toLowerCase();
+          return lowerName === lowerTarget ||
+            lowerName.endsWith('/' + lowerTarget) ||
+            lowerName.endsWith('\\' + lowerTarget);
+        });
 
-        const handleClick = (event: MouseEvent) => {
-          const target = event.target as HTMLElement;
-          const anchor = target.closest('a');
-
-          if (anchor && anchor.href) {
-            const url = new URL(anchor.href, iframeSrc);
-            const currentOrigin = new URL(iframeSrc!).origin;
-
-            if (url.origin === currentOrigin) {
-              const path = url.pathname;
-              // Normalize path to handle both /index.html and /
-              const normalizedPath = path === '/index.html' ? '/' : path;
-              if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
-                event.preventDefault();
-                onNavigate(normalizedPath);
-              }
-            }
+        if (htmlFile) {
+          console.log('[Preview Browser] Loading file:', htmlFile.name);
+          // Temporarily replace index.html with the target file for preview
+          const tempFiles = files.map(f =>
+            f.name === htmlFile.name
+              ? { ...htmlFile, name: 'index.html' }
+              : f.name.toLowerCase().includes('index.html')
+                ? { ...f, name: '_original_index.html' }
+                : f
+          );
+          const url = createBrowserPreview(tempFiles);
+          if (url) {
+            setPreviewUrl(url);
           }
-
-          // Handle button clicks that might navigate
-          const button = target.closest('button');
-          if (button) {
-            const onclick = button.getAttribute('onclick');
-            if (onclick) {
-              // Check for common navigation patterns in onclick
-              const locationMatch = onclick.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/);
-              if (locationMatch) {
-                const path = locationMatch[1];
-                // Normalize path to handle both /index.html and /
-                const normalizedPath = path === '/index.html' ? '/' : (path.startsWith('/') ? path : '/' + path);
-                if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
-                  event.preventDefault();
-                  onNavigate(normalizedPath);
-                }
-              }
-            }
-          }
-        };
-
-        const handleSubmit = (event: Event) => {
-          const form = event.target as HTMLFormElement;
-          if (form && form.action) {
-            const url = new URL(form.action, iframeSrc);
-            const currentOrigin = new URL(iframeSrc!).origin;
-
-            if (url.origin === currentOrigin) {
-              const path = url.pathname;
-              // Normalize path to handle both /index.html and /
-              const normalizedPath = path === '/index.html' ? '/' : path;
-              if (fileUrls.has(normalizedPath) || fileUrls.has(path)) {
-                event.preventDefault();
-                onNavigate(normalizedPath);
-              }
-            }
-          }
-        };
-
-        iframeWindow.document.addEventListener('click', handleClick);
-        iframeWindow.document.addEventListener('submit', handleSubmit);
-        return () => {
-          iframeWindow.document.removeEventListener('click', handleClick);
-          iframeWindow.document.removeEventListener('submit', handleSubmit);
-        };
-      } catch (error) {
-        console.warn("Could not attach click listener to iframe (likely due to cross-origin restrictions or iframe not fully loaded):", error);
+        } else {
+          console.warn('[Preview Browser] File not found:', targetFile);
+        }
       }
     };
 
     window.addEventListener('message', handleMessage);
-    iframe.addEventListener('load', handleLoad);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [files, useElectron]);
+
+  // Update preview for Electron
+  useEffect(() => {
+    if (!useElectron || !window.electronAPI || files.length === 0) return;
+
+    console.log('[Preview Electron] Updating files:', files.length);
+    setIsLoading(true);
+
+    window.electronAPI.invoke('update-preview-files', files)
+      .then((result: { port: number }) => {
+        const path = initialPath === '/' ? '/index.html' : initialPath;
+        const url = `http://localhost:${result.port}${path}`;
+        console.log('[Preview Electron] URL:', url);
+        setPreviewUrl(url);
+        setIsLoading(false);
+        setError(null);
+      })
+      .catch((err: Error) => {
+        console.error('[Preview Electron] Error:', err);
+        setError('Erro ao atualizar arquivos do preview');
+        setIsLoading(false);
+      });
+  }, [files, initialPath, useElectron]);
+
+  // Update preview for Browser
+  useEffect(() => {
+    if (useElectron || files.length === 0) return;
+
+    console.log('[Preview Browser] Creating preview for', files.length, 'files');
+    setIsLoading(true);
+
+    try {
+      const url = createBrowserPreview(files);
+      if (url) {
+        console.log('[Preview Browser] ✅ Preview URL set');
+        setPreviewUrl(url);
+        setError(null);
+      } else {
+        console.error('[Preview Browser] ❌ No URL created');
+        setError('Arquivo index.html não encontrado');
+      }
+    } catch (err) {
+      console.error('[Preview Browser] ❌ Error:', err);
+      setError('Erro ao criar preview no navegador');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [files, useElectron]);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
     return () => {
-      window.removeEventListener('message', handleMessage);
-      iframe.removeEventListener('load', handleLoad);
+      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [iframeSrc, fileUrls, onNavigate]);
+  }, []);
 
   const handleOpenInNewTab = () => {
-    if (iframeSrc) {
-      window.open(iframeSrc, '_blank');
+    if (previewUrl) {
+      window.open(previewUrl, '_blank');
     }
   };
 
+  const handleRefresh = () => {
+    if (iframeRef.current) {
+      if (useElectron) {
+        iframeRef.current.src = iframeRef.current.src;
+      } else {
+        const url = createBrowserPreview(files);
+        if (url) {
+          setPreviewUrl(url);
+        }
+      }
+    }
+  };
+
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    setError(null);
+  };
+
+  const handleIframeError = () => {
+    setIsLoading(false);
+    setError('Erro ao carregar o preview');
+  };
+
+  if (isLoading && !previewUrl) {
+    return (
+      <div className="w-full h-full bg-var-bg-muted flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-var-accent mb-3"></div>
+          <p className="text-var-fg-muted">Iniciando preview...</p>
+          <p className="text-xs text-var-fg-muted mt-2">
+            {useElectron ? 'Modo Electron' : 'Modo Navegador'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-full bg-var-bg-muted flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="text-red-500 mb-3">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Erro no Preview</h2>
+          <p className="text-var-fg-muted mb-3">{error}</p>
+          <p className="text-xs text-var-fg-muted">
+            Rodando em: {useElectron ? 'Electron' : 'Navegador'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (files.length === 0 || !files.some(f => f.name.toLowerCase().endsWith('.html'))) {
+    return (
+      <div className="w-full h-full bg-var-bg-muted flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="text-var-fg-muted mb-3">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Nenhum arquivo HTML encontrado</h2>
+          <p className="text-var-fg-muted">Adicione um arquivo index.html para ver o preview.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full bg-var-bg-muted flex flex-col">
-      <div className="flex items-center p-2 bg-var-bg-subtle border-b border-var-border-muted">
-        <div className="flex-1">
+      <div className="flex items-center p-2 bg-var-bg-subtle border-b border-var-border-muted flex-shrink-0">
+        <div className="flex-1 flex items-center gap-2">
+          {isLoading && (
+            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-var-accent"></div>
+          )}
+          <span className="text-xs px-2 py-0.5 rounded bg-var-bg-interactive text-var-fg-muted">
+            {useElectron ? '⚡ Electron' : '🌐 Browser'}
+          </span>
           <input
             type="text"
             readOnly
-            value={`http://localhost:3000${initialPath}`}
-            className="w-full px-2 py-1 text-sm bg-var-bg-input border border-var-border-input rounded"
-            title="URL de visualização local"
-            aria-label="URL de visualização local"
+            value={useElectron ? previewUrl : 'Preview no Navegador'}
+            className="flex-1 px-2 py-1 text-sm bg-var-bg-input border border-var-border-input rounded"
           />
         </div>
         <button
-          onClick={handleOpenInNewTab}
+          onClick={handleRefresh}
           className="ml-2 p-1.5 rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors"
-          title="Abrir em nova guia"
-          aria-label="Abrir em nova guia"
+          title="Atualizar preview"
         >
-          <ExternalLinkIcon className="w-4 h-4" />
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
         </button>
-      </div>
-      <div className="flex-1 w-full h-full">
-        {iframeSrc === undefined && (
-          <div className="flex flex-col items-center justify-center h-full">
-            <p className="text-lg font-medium">Construindo sua aplicação...</p>
-          </div>
+        {useElectron && (
+          <button
+            onClick={handleOpenInNewTab}
+            className="ml-2 p-1.5 rounded-md text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors"
+            title="Abrir em nova guia"
+          >
+            <ExternalLinkIcon className="w-4 h-4" />
+          </button>
         )}
-        {iframeSrc && (
-          <iframe
-            ref={iframeRef}
-            key={iframeSrc}
-            src={iframeSrc}
-            title="Project Preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation-by-user-activation"
-            className="w-full h-full border-0"
-            allow="accelerometer; autoplay; camera; clipboard-read; clipboard-write; encrypted-media; gyroscope; microphone; midi; payment; picture-in-picture; publickey-credentials-get; sync-xhr; usb; web-share; xr-spatial-tracking"
-          />
+      </div>
+      <div className="flex-1 w-full h-full relative">
+        {previewUrl ? (
+          <>
+            {isLoading && (
+              <div className="absolute inset-0 bg-var-bg-muted flex items-center justify-center z-10">
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-var-accent mb-3"></div>
+                  <p className="text-var-fg-muted">Carregando preview...</p>
+                </div>
+              </div>
+            )}
+            <iframe
+              ref={iframeRef}
+              key={previewUrl}
+              src={previewUrl}
+              title="Project Preview"
+              className="w-full h-full border-0"
+              style={{ background: 'white' }}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
+              onLoad={handleIframeLoad}
+              onError={handleIframeError}
+            />
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-var-accent"></div>
+          </div>
         )}
       </div>
     </div>
