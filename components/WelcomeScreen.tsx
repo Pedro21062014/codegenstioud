@@ -95,14 +95,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
     const [showGenerationModeDropdown, setShowGenerationModeDropdown] = useState(false);
 
     const allowedNonProModels = [
-        'gemini-2.0-flash',
-        'gemini-2.5-flash',
-        'openrouter/google/gemini-pro-1.5',
-        'deepseek/deepseek-chat-v3.1:free',
         'z-ai/glm-4.5-air:free',
-        'moonshotai/kimi-k2:free',
-        'deepseek/deepseek-r1:free',
-        'google/gemini-2.0-flash-exp:free',
+        'gemini-2.5-flash',
+        'gemini-3.0',
     ];
 
     const filteredModels = isProUser
@@ -134,8 +129,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
         setShowGenerationModeDropdown(false);
     };
 
-    const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'gemini-2.5-flash' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
+    const showGeminiImage = !isProUser && (selectedModelId === 'gemini-2.0-flash' || selectedModelId === 'gemini-2.5-flash' || selectedModelId === 'gemini-3.0' || selectedModelId === 'openrouter/google/gemini-pro-1.5');
     const showOpenRouterImage = filteredModels.find(m => m.id === selectedModelId)?.provider === AIProvider.OpenRouter;
+    const showGLMImage = selectedModelId === 'z-ai/glm-4.5-air:free';
 
     useEffect(() => {
         const type = () => {
@@ -350,6 +346,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                             <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="px-4 py-2.5 bg-var-bg-interactive/80 border border-var-border-default rounded-xl text-var-fg-default hover:bg-var-accent/10 hover:border-var-accent/50 transition-all flex items-center gap-2 font-medium hover-lift" title="Selecionar modelo de IA">
                                                 {showGeminiImage && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                                                 {showOpenRouterImage && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                                                {showGLMImage && <img src={openrouterImage} alt="GLM" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                                                 <span className="text-sm">{filteredModels.find(m => m.id === selectedModelId)?.name || "Modelo"}</span>
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -365,8 +362,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onPromptSubmit, on
                                                                 className={`flex items-center w-full px-4 py-3 text-sm text-gray-800 hover:bg-var-accent/10 rounded-xl gap-3 transition-all hover-lift ${selectedModelId === model.id ? 'bg-var-accent/20 border border-var-accent/50' : ''}`}
                                                                 title={model.name}
                                                             >
-                                                                {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'gemini-2.5-flash' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                                                                {!isProUser && (model.id === 'gemini-2.0-flash' || model.id === 'gemini-2.5-flash' || model.id === 'gemini-3.0' || model.id === 'openrouter/google/gemini-pro-1.5') && <img src={geminiImage} alt="Gemini" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                                                                 {model.provider === AIProvider.OpenRouter && <img src={openrouterImage} alt="OpenRouter" className="w-5 h-5 dark:invert-0 light:invert-1" />}
+                                                                {model.id === 'z-ai/glm-4.5-air:free' && <img src={openrouterImage} alt="GLM" className="w-5 h-5 dark:invert-0 light:invert-1" />}
                                                                 <span className="font-medium">{model.name}</span>
                                                                 {selectedModelId === model.id && (
                                                                     <svg className="w-4 h-4 ml-auto text-var-accent" fill="currentColor" viewBox="0 0 20 20">
