@@ -62,24 +62,24 @@ export class LocalStorageService {
     try {
       const projects = this.getProjects();
       const existingIndex = projects.findIndex(p => p.id === project.id);
-      
+
       if (existingIndex !== -1) {
         projects[existingIndex] = project;
       } else {
         projects.push(project);
       }
-      
+
       this.saveProjects(projects);
     } catch (error) {
       console.error('Error adding project to localStorage:', error);
     }
   }
 
-  static updateProject(projectId: number, updates: Partial<SavedProject>): void {
+  static updateProject(projectId: string, updates: Partial<SavedProject>): void {
     try {
       const projects = this.getProjects();
       const projectIndex = projects.findIndex(p => p.id === projectId);
-      
+
       if (projectIndex !== -1) {
         projects[projectIndex] = { ...projects[projectIndex], ...updates };
         this.saveProjects(projects);
@@ -89,7 +89,7 @@ export class LocalStorageService {
     }
   }
 
-  static deleteProject(projectId: number): void {
+  static deleteProject(projectId: string): void {
     try {
       const projects = this.getProjects();
       const filteredProjects = projects.filter(p => p.id !== projectId);
@@ -200,10 +200,10 @@ export class LocalStorageService {
           totalSize += localStorage[key].length + key.length;
         }
       }
-      
+
       const kb = totalSize / 1024;
       const mb = kb / 1024;
-      
+
       if (mb > 1) {
         return `${mb.toFixed(2)} MB`;
       } else {

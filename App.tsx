@@ -12,7 +12,6 @@ import { GithubImportModal } from './components/GithubImportModal';
 import { PublishModal } from './components/PublishModal';
 import { AuthModal } from './components/AuthModal';
 
-import { SupabaseAdminModal } from './components/SupabaseAdminModal';
 import { StripeModal } from './components/StripeModal';
 import { NeonModal } from './components/NeonModal';
 import { OpenStreetMapModal } from './components/OpenStreetMapModal';
@@ -32,31 +31,32 @@ const MAX_RETRIES = 3; // Define max retries for AI generation
 
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo, VersionIcon } from './components/Icons';
-import { supabase } from './services/supabase';
-import type { Session, User } from '@supabase/supabase-js';
+import { db, auth } from './services/firebase';
+import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { User, onAuthStateChanged, signOut, type User as FirebaseAuthUser } from "firebase/auth";
 import geminiImage from './components/models image/gemini.png'; // Import the image
 import openrouterImage from './components/models image/openrouter.png'; // Import the OpenRouter image
-import { debugService } from './services/debugService';
+// import { debugService } from './services/debugService'; // debugService removed
 import { LocalStorageService } from './services/localStorageService';
-import { MigrationService } from './services/migrationService';
+// import { MigrationService } from './services/migrationService'; // MigrationService removed
 
 // Make debugService available in console for testing
-if (typeof window !== 'undefined') {
+/* if (typeof window !== 'undefined') {
   (window as any).debugService = debugService;
-}
+} */ // debugService removed
 
 interface HeaderProps {
   onToggleSidebar: () => void;
   onToggleChat: () => void;
   onToggleVersionModal: () => void;
   projectName: string;
-  session: Session | null;
+  user: FirebaseAuthUser | null; // Changed from session to user
   selectedModel: { id: string; name: string; provider: AIProvider };
   onModelChange: (model: { id: string; name: string; provider: AIProvider }) => void;
   isProUser: boolean; // Add isProUser to HeaderProps
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, onToggleVersionModal, projectName, session, selectedModel, onModelChange, isProUser }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onToggleChat, onToggleVersionModal, projectName, user, selectedModel, onModelChange, isProUser }) => {
   const allowedNonProModels = [
     'gemini-2.0-flash',
     'openrouter/google/gemini-pro-1.5',
@@ -185,7 +185,7 @@ interface ProjectState {
   chatMessages: ChatMessage[];
   projectName: string;
   envVars: Record<string, string>;
-  currentProjectId: number | null; // Database ID
+  currentProjectId: string | null; // Firebase Firestore Document ID
   appType: AppType; // Add appType to track project type
 }
 
@@ -217,7 +217,6 @@ const App: React.FC = () => {
   const [isLocalRunModalOpen, setLocalRunModalOpen] = useState(false);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
 
-  const [isSupabaseAdminModalOpen, setSupabaseAdminModalOpen] = useState(false);
   const [isStripeModalOpen, setStripeModalOpen] = useState(false);
   const [isNeonModalOpen, setNeonModalOpen] = useState(false);
   const [isOSMModalOpen, setOSMModalOpen] = useState(false);
@@ -258,7 +257,7 @@ const App: React.FC = () => {
     LocalStorageService.setDailyUsage(dailyUsage);
   }, [dailyUsage]);
 
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<FirebaseAuthUser | null>(null); // Changed from session to user
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [postLoginAction, setPostLoginAction] = useState<(() => void) | null>(null);
 
@@ -276,51 +275,51 @@ const App: React.FC = () => {
   }, []);
 
   // --- Data Fetching and Auth ---
-  const fetchUserData = useCallback(async (user: User) => {
+  const fetchUserData = useCallback(async (firebaseUser: FirebaseAuthUser) => {
     try {
-      console.log('📊 Carregando dados do usuário:', user.id);
+      console.log('📊 Carregando dados do usuário:', firebaseUser.uid);
 
-      // Verificar se há dados locais para migrar
-      if (MigrationService.hasLocalDataToMigrate()) {
-        console.log('🔄 Detectados dados locais, iniciando migração...');
-        const migrationResult = await MigrationService.migrateLocalDataToSupabase(user.id);
+      // Carregar dados do Firestore para o perfil do usuário
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
 
-        if (migrationResult.success) {
-          console.log('✅ Migração concluída com sucesso:', {
-            projetos: migrationResult.projectsMigrated,
-            configurações: migrationResult.settingsMigrated
-          });
-        } else {
-          console.warn('⚠️ Migração concluída com erros:', migrationResult.errors);
-        }
+      if (userDocSnap.exists()) {
+        const profileData = userDocSnap.data() as UserSettings;
+        setUserSettings(profileData);
+      } else {
+        // Criar um novo perfil se não existir
+        const newProfile: UserSettings = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          theme: theme, // Use current theme from state
+          isPro: false,
+        };
+        await updateDoc(userDocRef, { ...newProfile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        setUserSettings({ ...newProfile, createdAt: new Date(), updatedAt: new Date() }); // Set local Date objects for consistency
       }
 
-      // Carregar dados do Supabase para todos os usuários autenticados
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // Carregar projetos do Firestore para o usuário
+      const projectsColRef = collection(db, 'projects');
+      const q = query(projectsColRef, where('userId', '==', firebaseUser.uid));
+      const querySnapshot = await getDocs(q);
+      const projectsData: SavedProject[] = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          userId: data.userId,
+          name: data.name,
+          createdAt: data.createdAt.toDate(), // Convert Firestore Timestamp to Date
+          updatedAt: data.updatedAt.toDate(), // Convert Firestore Timestamp to Date
+          files: data.files,
+          chatHistory: data.chatHistory,
+          envVars: data.envVars,
+          appType: data.appType,
+        };
+      });
+      setSavedProjects(projectsData);
 
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means "no rows found"
-        console.error("Erro ao buscar perfil:", profileError);
-        throw profileError;
-      }
-      setUserSettings(profileData || null);
-
-      const { data: projectsData, error: projectsError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (projectsError) {
-        console.error("Erro ao buscar projetos:", projectsError);
-        throw projectsError;
-      }
-      setSavedProjects(projectsData || []);
-
-      // Sincronizar dados para localStorage como cache
-      await MigrationService.syncSupabaseToLocal(user.id);
       console.log('✅ Dados carregados e sincronizados com sucesso');
 
     } catch (error) {
@@ -332,43 +331,20 @@ const App: React.FC = () => {
       setUserSettings(localSettings);
       setSavedProjects(localProjects);
     }
-  }, []);
+  }, [theme]); // Added theme to dependencies
 
   useEffect(() => {
-    const initializeSession = async () => {
-      // 1. Get initial session
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser); // Set the Firebase user
 
-      // 2. Carregar dados do usuário se estiver logado
-      if (initialSession?.user) {
-        await fetchUserData(initialSession.user);
-      } else {
-        // Para usuários não logados, carregar dados do localStorage
-        const localSettings = LocalStorageService.getUserSettings();
-        const localProjects = LocalStorageService.getProjects();
-        setUserSettings(localSettings);
-        setSavedProjects(localProjects);
-      }
-
-      // 3. Set loading to false after initial check is complete
-      setIsLoadingData(false);
-    };
-
-    setIsLoadingData(true);
-    initializeSession();
-
-    // 4. Set up a listener for subsequent auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      if (newSession?.user) {
-        await fetchUserData(newSession.user);
+      if (firebaseUser) {
+        await fetchUserData(firebaseUser);
         if (postLoginAction) {
           postLoginAction();
           setPostLoginAction(null);
         }
       } else {
-        // Ao fazer logout, carregar dados do localStorage
+        // For logged-out users, load data from localStorage
         console.log('🔓 Logout detectado - carregando dados locais');
         setUserSettings(null);
         setSavedProjects([]);
@@ -378,11 +354,10 @@ const App: React.FC = () => {
         setUserSettings(localSettings);
         setSavedProjects(localProjects);
       }
+      setIsLoadingData(false); // Set loading to false after initial check is complete
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => unsubscribe();
   }, [fetchUserData, postLoginAction]);
 
 
@@ -412,25 +387,14 @@ const App: React.FC = () => {
 
   const handleLogout = useCallback(async () => {
     console.log('🚪 Iniciando processo de logout...');
-    console.log('📍 Verificando sessão atual:', session ? 'Usuário logado' : 'Usuário não logado');
-    console.log('📍 Verificando função supabase.auth.signOut:', typeof supabase.auth.signOut);
-    console.log('📍 Versão do Supabase:', supabase.auth ? 'auth disponível' : 'auth não disponível');
+    console.log('📍 Verificando usuário atual:', user ? 'Usuário logado' : 'Usuário não logado');
 
     try {
-      console.log('⏳ Chamando supabase.auth.signOut()...');
-      const { error } = await supabase.auth.signOut();
-      console.log('📥 Resposta do signOut:', { error });
-
-      if (error) {
-        console.error('❌ Erro ao fazer logout:', error);
-        alert(`Erro ao tentar sair: ${error.message}`);
-        return;
-      }
-
+      console.log('⏳ Chamando Firebase signOut()...');
+      await signOut(auth);
       console.log('✅ Logout realizado com sucesso!');
-      console.log('🧹 Limpando estado do projeto...');
+
       setProject(initialProjectState);
-      console.log('🔄 Redirecionando para tela de boas-vindas...');
       setView('welcome');
 
       console.log('📍 canManipulateHistory:', canManipulateHistory);
@@ -450,25 +414,23 @@ const App: React.FC = () => {
       console.error('💥 Erro inesperado durante logout:', err);
       alert(`Erro inesperado ao fazer logout: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
-  }, [setProject, setView, canManipulateHistory, session]);
+  }, [setProject, setView, canManipulateHistory, user]); // Changed 'session' to 'user'
 
   // Adicionar função de teste global para debug
   if (typeof window !== 'undefined') {
     (window as any).testLogout = async () => {
       console.log('🧪 TESTE: Iniciando logout manual...');
       try {
-        const result = await supabase.auth.signOut();
-        console.log('🧪 TESTE: Resultado do signOut:', result);
-        return result;
+        await signOut(auth);
+        console.log('🧪 TESTE: Logout do Firebase bem-sucedido.');
       } catch (error) {
-        console.error('🧪 TESTE: Erro no signOut:', error);
+        console.error('🧪 TESTE: Erro no signOut do Firebase:', error);
         throw error;
       }
     };
   }
 
-
-  const handleLoadProject = useCallback((projectId: number, confirmLoad: boolean = true) => {
+  const handleLoadProject = useCallback((projectId: string, confirmLoad: boolean = true) => {
     if (confirmLoad && project.files.length > 0 && !window.confirm("Carregar este projeto substituirá seu trabalho local atual. Deseja continuar?")) {
       return;
     }
@@ -478,9 +440,10 @@ const App: React.FC = () => {
       setProject({
         files: projectToLoad.files,
         projectName: projectToLoad.name,
-        chatMessages: projectToLoad.chat_history,
-        envVars: projectToLoad.env_vars || {},
+        chatMessages: projectToLoad.chatHistory,
+        envVars: projectToLoad.envVars || {},
         currentProjectId: projectToLoad.id,
+        appType: projectToLoad.appType || 'auto',
         activeFile: projectToLoad.files.find(f => f.name.includes('html'))?.name || projectToLoad.files[0]?.name || null,
       });
 
@@ -510,10 +473,9 @@ const App: React.FC = () => {
     const projectIdStr = urlParams.get('projectId');
 
     if (canManipulateHistory && projectIdStr) {
-      const projectId = parseInt(projectIdStr, 10);
-      const projectExists = savedProjects.some(p => p.id === projectId);
+      const projectExists = savedProjects.some(p => p.id === projectIdStr);
       if (projectExists) {
-        handleLoadProject(projectId, false);
+        handleLoadProject(projectIdStr, false);
         setView('editor');
         return;
       }
@@ -541,7 +503,7 @@ const App: React.FC = () => {
     console.log('💾 handleSaveSettings chamado com:', newSettings);
 
     // Verificar se usuário está autenticado
-    if (!session?.user) {
+    if (!user) {
       console.log('⚠️ Usuário não autenticado - salvando apenas localmente');
       LocalStorageService.saveUserSettings(newSettings);
 
@@ -553,58 +515,44 @@ const App: React.FC = () => {
       return;
     }
 
-    // Para usuários autenticados, salvar no Supabase
+    // Para usuários autenticados, salvar no Firestore
     try {
-      const settingsData = {
+      const userDocRef = doc(db, 'users', user.uid);
+
+      const settingsToSave = {
         ...newSettings,
-        id: session.user.id,
-        updated_at: new Date().toISOString(),
+        updatedAt: serverTimestamp(), // Firestore Timestamp
       };
 
-      console.log('📤 Salvando configurações no Supabase:', {
-        userId: session.user.id,
+      console.log('📤 Salvando configurações no Firestore:', {
+        userId: user.uid,
         campos: Object.keys(newSettings),
       });
 
-      const { data, error } = await supabase.from('profiles').upsert(settingsData).select().single();
+      await updateDoc(userDocRef, settingsToSave);
 
-      if (error) {
-        console.error("❌ Erro ao salvar no Supabase:", {
-          error,
-          code: error.code,
-          message: error.message,
-        });
+      console.log('✅ Configurações salvas no Firestore');
 
-        // Tratamento específico para erros comuns
-        if (error.code === '42501') {
-          alert("Erro de permissão: Verifique se as políticas RLS estão configuradas corretamente no Supabase.");
-        } else if (error.code === 'PGRST116') {
-          alert("Perfil não encontrado. Tente fazer login novamente.");
-        } else if (error.message.includes('column') && error.message.includes('does not exist')) {
-          alert("Erro de schema: Execute o script SQL fornecido no painel do Supabase.");
-        } else {
-          alert(`Erro ao salvar configurações (${error.code}): ${error.message}`);
-        }
+      // Atualizar estado local com a data atual para 'updatedAt'
+      const updatedLocalSettings = {
+        ...userSettings, // Use current userSettings to preserve existing fields
+        ...newSettings,
+        updatedAt: new Date(), // Update updatedAt to current local time
+      } as UserSettings; // Cast to UserSettings
 
-        // Salvar localmente como fallback
-        LocalStorageService.saveUserSettings(newSettings);
-      } else {
-        console.log('✅ Configurações salvas no Supabase:', data);
+      setUserSettings(updatedLocalSettings);
 
-        // Atualizar estado local
-        setUserSettings(prev => ({ ...prev, ...data }));
+      // Sincronizar com localStorage como cache
+      LocalStorageService.saveUserSettings(updatedLocalSettings);
 
-        // Sincronizar com localStorage como cache
-        LocalStorageService.saveUserSettings(data);
+      const successMessage = Object.keys(newSettings).length === 1
+        ? `Configuração "${Object.keys(newSettings)[0]}" salva com sucesso!`
+        : 'Configurações salvas com sucesso!';
 
-        const successMessage = Object.keys(newSettings).length === 1
-          ? `Configuração "${Object.keys(newSettings)[0]}" salva com sucesso!`
-          : 'Configurações salvas com sucesso!';
+      setTimeout(() => {
+        alert(successMessage);
+      }, 100);
 
-        setTimeout(() => {
-          alert(successMessage);
-        }, 100);
-      }
     } catch (err) {
       console.error("💥 Erro inesperado ao salvar configurações:", err);
       alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}. Tente novamente.`);
@@ -612,49 +560,8 @@ const App: React.FC = () => {
       // Salvar localmente como fallback
       LocalStorageService.saveUserSettings(newSettings);
     }
-  }, [session, setUserSettings]);
+  }, [user, setUserSettings, userSettings]); // Added userSettings to dependencies
 
-  const handleSupabaseAdminAction = useCallback(async (action: { query: string }) => {
-    if (!userSettings?.supabase_project_url || !userSettings?.supabase_service_key) {
-      const errorMessage = "As credenciais do Supabase não estão configuradas. Por favor, adicione-as nas integrações para executar ações de banco de dados.";
-      setProject(p => ({
-        ...p,
-        chatMessages: [...p.chatMessages, { role: 'assistant', content: `Erro: ${errorMessage}` }]
-      }));
-      setSupabaseAdminModalOpen(true);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/supabase-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectUrl: userSettings.supabase_project_url,
-          serviceKey: userSettings.supabase_service_key,
-          query: action.query,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Falha ao executar a ação do Supabase.');
-      }
-
-      setProject(p => ({
-        ...p,
-        chatMessages: [...p.chatMessages, { role: 'system', content: `Ação do banco de dados executada com sucesso.` }]
-      }));
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
-      setProject(p => ({
-        ...p,
-        chatMessages: [...p.chatMessages, { role: 'assistant', content: `Erro ao executar a ação do banco de dados: ${errorMessage}` }]
-      }));
-    }
-  }, [userSettings, setProject]);
 
   const handleSendMessage = useCallback(async (prompt: string, provider: AIProvider, model: string, mode: AIMode, attachments: { data: string; mimeType: string }[] = [], appType: AppType = 'auto', generationMode: GenerationMode = 'full') => {
     setCodeError(null);
@@ -740,7 +647,7 @@ const App: React.FC = () => {
 
     // Check daily usage limit for Gemini with default API key
     if (provider === AIProvider.Gemini && effectiveGeminiApiKey === DEFAULT_GEMINI_API_KEY) {
-      if (!session?.user) {
+      if (!user) { // Changed from session?.user to user
         alert('Você precisa estar logado para usar o Gemini com a chave padrão.');
         setIsInitializing(false);
         return;
@@ -753,7 +660,7 @@ const App: React.FC = () => {
       if (!isProUser) {
         setDailyUsage(prev => prev + 1);
       }
-    } // Close the if block here
+    }
 
     let result = null;
     let lastError: Error | null = null;
@@ -867,14 +774,10 @@ const App: React.FC = () => {
       return p;
     });
 
-    if (result.supabaseAdminAction) {
-      await handleSupabaseAdminAction(result.supabaseAdminAction);
-    }
-
     if (isFirstGeneration) {
       setIsInitializing(false);
     }
-  }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, handleSupabaseAdminAction, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile, setOpenRouterKeyModalOpen]);
+  }, [project, effectiveGeminiApiKey, isProUser, view, userSettings, setProject, setCodeError, setLastModelUsed, setApiKeyModalOpen, setPendingPrompt, setIsInitializing, setGeneratingFile, setOpenRouterKeyModalOpen]); // Removed handleSupabaseAdminAction
 
   useEffect(() => {
     if (!pendingPrompt) return;
@@ -908,29 +811,30 @@ const App: React.FC = () => {
       return;
     }
 
-    const projectData = {
+    const projectData: Omit<SavedProject, 'id' | 'createdAt' | 'updatedAt' | 'userId'> = {
       name: projectName,
       files,
-      chat_history: chatMessages,
-      env_vars: envVars,
-      updated_at: new Date().toISOString(),
+      chatHistory: chatMessages,
+      envVars: envVars,
+      appType: project.appType,
     };
 
     // Verificar se usuário está autenticado
-    if (!session) {
+    if (!user) {
       console.log('⚠️ Usuário não autenticado - salvando apenas localmente');
 
       // Gerar ID local único se não existir
       let projectId = currentProjectId;
       if (!projectId) {
-        projectId = Date.now() + Math.random();
+        projectId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       }
 
       const localProject: SavedProject = {
         ...projectData,
         id: projectId,
-        user_id: 'local-user',
-        created_at: new Date().toISOString(),
+        userId: 'local-user',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       LocalStorageService.addProject(localProject);
@@ -943,87 +847,81 @@ const App: React.FC = () => {
       return;
     }
 
-    // Para usuários autenticados, salvar no Supabase
-    console.log('📝 Salvando projeto no Supabase:', {
+    // Para usuários autenticados, salvar no Firestore
+    console.log('📝 Salvando projeto no Firestore:', {
       name: projectName,
       filesCount: files.length,
-      userId: session.user.id,
+      userId: user.uid,
     });
 
-    const supabaseProjectData = {
+    const firestoreProjectData = {
       ...projectData,
-      user_id: session.user.id,
+      userId: user.uid,
+      updatedAt: serverTimestamp(), // Use Firestore server timestamp
     };
 
     try {
       if (currentProjectId) {
         // Atualizar projeto existente
         console.log('🔄 Atualizando projeto existente:', currentProjectId);
-        const { data, error } = await supabase
-          .from('projects')
-          .update(supabaseProjectData)
-          .eq('id', currentProjectId)
-          .select()
-          .single();
+        const projectDocRef = doc(db, 'projects', currentProjectId);
+        await updateDoc(projectDocRef, firestoreProjectData);
 
-        if (error) {
-          console.error('❌ Erro de atualização:', error);
-          alert(`Erro ao atualizar o projeto: ${error.message}`);
+        console.log('✅ Atualização bem-sucedida:', currentProjectId);
 
-          // Salvar localmente como fallback
-          LocalStorageService.updateProject(currentProjectId, projectData);
-        } else {
-          console.log('✅ Atualização bem-sucedida:', data);
-          setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? data : p));
+        // Atualizar estado local com a data atual para 'updatedAt'
+        const updatedLocalProject = {
+          ...projectData,
+          id: currentProjectId,
+          userId: user.uid,
+          createdAt: savedProjects.find(p => p.id === currentProjectId)?.createdAt || new Date(), // Keep original createdAt or set new
+          updatedAt: new Date(), // Update updatedAt to current local time
+        };
 
-          // Sincronizar com localStorage
-          LocalStorageService.updateProject(currentProjectId, data);
+        setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? updatedLocalProject : p));
 
-          alert(`Projeto "${projectName}" atualizado com sucesso!`);
-        }
+        // Sincronizar com localStorage
+        LocalStorageService.updateProject(currentProjectId, updatedLocalProject);
+
+        alert(`Projeto "${projectName}" atualizado com sucesso!`);
+
       } else {
         // Inserir novo projeto
         console.log('➕ Inserindo novo projeto');
-        const { data, error } = await supabase
-          .from('projects')
-          .insert(supabaseProjectData)
-          .select()
-          .single();
+        const projectsColRef = collection(db, 'projects');
+        const newProjectRef = await addDoc(projectsColRef, {
+          ...firestoreProjectData,
+          createdAt: serverTimestamp(), // Set createdAt on new project
+        });
 
-        if (error) {
-          console.error('❌ Erro de inserção:', error);
-          alert(`Erro ao salvar o projeto: ${error.message}`);
+        console.log('✅ Inserção bem-sucedida:', newProjectRef.id);
 
-          // Salvar localmente como fallback
-          const localId = Date.now() + Math.random();
-          const localProject: SavedProject = {
-            ...projectData,
-            id: localId,
-            user_id: session.user.id,
-            created_at: new Date().toISOString(),
-          };
-          LocalStorageService.addProject(localProject);
-          setProject(p => ({ ...p, currentProjectId: localId }));
-        } else {
-          console.log('✅ Inserção bem-sucedida:', data);
-          setProject(p => ({ ...p, currentProjectId: data.id }));
-          setSavedProjects([...savedProjects, data]);
+        // Criar um objeto SavedProject com as datas corretas (Timestamp para Date)
+        const newSavedProject: SavedProject = {
+          ...projectData,
+          id: newProjectRef.id,
+          userId: user.uid,
+          createdAt: new Date(), // Firestore serverTimestamp will resolve to a Date on read
+          updatedAt: new Date(), // Firestore serverTimestamp will resolve to a Date on read
+        };
 
-          // Sincronizar com localStorage
-          LocalStorageService.addProject(data);
+        setProject(p => ({ ...p, currentProjectId: newProjectRef.id }));
+        setSavedProjects([...savedProjects, newSavedProject]);
 
-          alert(`Projeto "${projectName}" salvo com sucesso!`);
-        }
+        // Sincronizar com localStorage
+        LocalStorageService.addProject(newSavedProject);
+
+        alert(`Projeto "${projectName}" salvo com sucesso!`);
       }
     } catch (err) {
       console.error('💥 Erro inesperado:', err);
       alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
-  }, [session, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject]);
+  }, [user, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject, project.appType]);
 
-  const handleDeleteProject = useCallback(async (projectId: number) => {
+  const handleDeleteProject = useCallback(async (projectId: string) => {
     // Verificar se usuário está autenticado
-    if (!session) {
+    if (!user) {
       console.log('⚠️ Usuário não autenticado - excluindo apenas do localStorage');
       LocalStorageService.deleteProject(projectId);
       setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
@@ -1034,33 +932,29 @@ const App: React.FC = () => {
       return;
     }
 
-    // Para usuários autenticados, excluir do Supabase
+    // Para usuários autenticados, excluir do Firestore
     try {
-      const { error } = await supabase.from('projects').delete().eq('id', projectId);
+      const projectDocRef = doc(db, 'projects', projectId);
+      await deleteDoc(projectDocRef);
 
-      if (error) {
-        console.error('❌ Erro ao excluir projeto:', error);
-        alert(`Erro ao excluir o projeto: ${error.message}`);
-      } else {
-        console.log('✅ Projeto excluído do Supabase');
-        setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
+      console.log('✅ Projeto excluído do Firestore');
+      setSavedProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
 
-        // Também excluir do localStorage
-        LocalStorageService.deleteProject(projectId);
+      // Também excluir do localStorage
+      LocalStorageService.deleteProject(projectId);
 
-        if (currentProjectId === projectId) {
-          handleNewProject();
-        }
-        alert("Projeto excluído com sucesso.");
+      if (currentProjectId === projectId) {
+        handleNewProject();
       }
+      alert("Projeto excluído com sucesso.");
     } catch (err) {
       console.error('💥 Erro inesperado ao excluir:', err);
       alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     }
-  }, [session, currentProjectId, handleNewProject]);
+  }, [user, currentProjectId, handleNewProject]);
 
   const handleOpenSettings = () => {
-    if (session) {
+    if (user) {
       setSettingsOpen(true);
     } else {
       setPostLoginAction(() => () => setSettingsOpen(true));
@@ -1175,7 +1069,7 @@ const App: React.FC = () => {
     switch (view) {
       case 'welcome':
         return <WelcomeScreen
-          session={session}
+          user={user}
           onLoginClick={() => setAuthModalOpen(true)}
           onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType, generationMode: GenerationMode) => {
             const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
@@ -1207,7 +1101,7 @@ const App: React.FC = () => {
               onToggleChat={() => setChatOpen(true)}
               onToggleVersionModal={() => setVersionModalOpen(true)}
               projectName={projectName}
-              session={session}
+              user={user}
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
               isProUser={isProUser}
@@ -1217,11 +1111,11 @@ const App: React.FC = () => {
               <div className="hidden lg:block w-[320px] flex-shrink-0">
                 <Sidebar
                   files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={name => setProject(p => ({ ...p, activeFile: name }))} onDownload={handleDownload}
-                  onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)} onOpenSupabaseAdmin={() => setSupabaseAdminModalOpen(true)}
+                  onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)}
                   onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                   onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)} onOpenFirebaseFirestoreModal={() => setFirebaseFirestoreModalOpen(true)}
-                  session={session} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
+                  user={user} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
                 />
               </div>
 
@@ -1231,12 +1125,12 @@ const App: React.FC = () => {
                     <Sidebar
                       files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={(file) => { setProject(p => ({ ...p, activeFile: file })); setSidebarOpen(false); }}
                       onDownload={() => { handleDownload(); setSidebarOpen(false); }} onOpenSettings={() => { handleOpenSettings(); setSidebarOpen(false); }}
-                      onOpenGithubImport={() => { setGithubModalOpen(true); setSidebarOpen(false); }} onOpenSupabaseAdmin={() => { setSupabaseAdminModalOpen(true); setSidebarOpen(false); }}
+                      onOpenGithubImport={() => { setGithubModalOpen(true); setSidebarOpen(false); }}
                       onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
                       onNewProject={handleNewProject} onClose={() => setSidebarOpen(false)}
                       onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                       onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
-                      session={session} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
+                      user={user} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
                     />
                   </div>
                 </div>
@@ -1269,7 +1163,7 @@ const App: React.FC = () => {
         );
       default:
         return <WelcomeScreen
-          session={session}
+          user={user}
           onLoginClick={() => setAuthModalOpen(true)}
           onPromptSubmit={(prompt: string, attachments: { data: string; mimeType: string }[], aiModel: string, appType: AppType, generationMode: GenerationMode) => {
             const model = AI_MODELS.find(m => m.id === aiModel) || { id: aiModel, name: aiModel, provider: AIProvider.Gemini };
@@ -1291,27 +1185,21 @@ const App: React.FC = () => {
       {mainContent()}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />
       <SettingsModal
-        isOpen={isSettingsOpen && !!session}
+        isOpen={isSettingsOpen && !!user}
         onClose={() => setSettingsOpen(false)}
-        settings={userSettings || { id: session?.user?.id || '' }}
-        onSave={handleSaveSettings}
-      />
-      <SupabaseAdminModal
-        isOpen={isSupabaseAdminModalOpen && !!session}
-        onClose={() => setSupabaseAdminModalOpen(false)}
-        settings={userSettings || { id: session?.user?.id || '' }}
+        settings={userSettings || { id: user?.uid || '' }}
         onSave={handleSaveSettings}
       />
       <StripeModal
-        isOpen={isStripeModalOpen && !!session}
+        isOpen={isStripeModalOpen && !!user}
         onClose={() => setStripeModalOpen(false)}
-        settings={userSettings || { id: session?.user?.id || '' }}
+        settings={userSettings || { id: user?.uid || '' }}
         onSave={handleSaveSettings}
       />
       <NeonModal
-        isOpen={isNeonModalOpen && !!session}
+        isOpen={isNeonModalOpen && !!user}
         onClose={() => setNeonModalOpen(false)}
-        settings={userSettings || { id: session?.user?.id || '' }}
+        settings={userSettings || { id: user?.uid || '' }}
         onSave={handleSaveSettings}
       />
       <OpenStreetMapModal
@@ -1346,15 +1234,15 @@ const App: React.FC = () => {
       />
 
       <GoogleCloudModal
-        isOpen={isGoogleCloudModalOpen && !!session}
+        isOpen={isGoogleCloudModalOpen && !!user}
         onClose={() => setGoogleCloudModalOpen(false)}
-        settings={userSettings || { id: session?.user?.id || '' }}
+        settings={userSettings || { id: user?.uid || '' }}
         onSave={(newSettings) => handleSaveSettings({ gcp_project_id: newSettings.gcp_project_id, gcp_credentials: newSettings.gcp_credentials })}
       />
       <FirebaseFirestoreModal
-        isOpen={isFirebaseFirestoreModalOpen && !!session}
+        isOpen={isFirebaseFirestoreModalOpen && !!user}
         onClose={() => setFirebaseFirestoreModalOpen(false)}
-        settings={userSettings || { id: session?.user?.id || '' }}
+        settings={userSettings || { id: user?.uid || '' }}
         onSave={handleSaveSettings}
       />
       <VersionModal

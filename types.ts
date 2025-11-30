@@ -43,42 +43,47 @@ export interface ChatMessage {
   fromCache?: boolean;
 }
 
-// UserSettings agora reflete a estrutura da tabela 'profiles' do Supabase
+// UserSettings now reflects the 'users' collection structure in Firebase Firestore
 export interface UserSettings {
-  id: string; // Corresponde a auth.users.id
-  updated_at?: string;
-  gemini_api_key?: string;
-  github_access_token?: string;
-  supabase_project_url?: string;
-  supabase_anon_key?: string;
-  supabase_service_key?: string;
-  stripe_public_key?: string;
-  stripe_secret_key?: string;
-  neon_connection_string?: string;
-  openrouter_api_key?: string;
-  gcp_project_id?: string;
-  gcp_credentials?: string; // JSON string of service account key
-  firebase_project_id?: string;
-  firebase_service_account_key?: string;
+  id: string; // Firebase Auth UID
+  email: string;
+  createdAt: Date;
+  updatedAt: Date;
+  geminiApiKey?: string;
+  githubAccessToken?: string;
+  supabaseProjectUrl?: string; // To be removed later if not needed
+  supabaseAnonKey?: string;     // To be removed later if not needed
+  supabaseServiceKey?: string;  // To be removed later if not needed
+  stripePublicKey?: string;
+  stripeSecretKey?: string;
+  neonConnectionString?: string;
+  openrouterApiKey?: string;
+  gcpProjectId?: string;
+  gcpCredentials?: string; // JSON string of service account key
+  firebaseProjectId?: string;
+  firebaseServiceAccountKey?: string; // JSON string of service account key
+  theme?: Theme;
+  isPro?: boolean;
 }
 
 export type Theme = 'light' | 'dark';
 
-// SavedProject agora reflete a estrutura da tabela 'projects' do Supabase
+// SavedProject now reflects the 'projects' collection structure in Firebase Firestore
 export interface SavedProject {
-  id: number;
-  user_id: string;
+  id: string; // Firestore Document ID
+  userId: string; // Firebase Auth UID
   name: string;
+  createdAt: Date;
+  updatedAt: Date;
   files: ProjectFile[];
-  chat_history: ChatMessage[];
-  env_vars: Record<string, string>;
-  created_at: string;
-  updated_at: string;
+  chatHistory: ChatMessage[];
+  envVars: Record<string, string>;
+  appType?: AppType;
 }
 
 export interface ProjectVersion {
   id: string;
-  timestamp: string;
+  timestamp: Date;
   description: string;
   files: ProjectFile[];
   chatHistory: ChatMessage[];

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { supabase } from '../services/supabase';
+import { auth, db } from '../services/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { CloseIcon, AppLogo, GoogleIcon } from './Icons';
 
 interface AuthModalProps {
@@ -24,40 +26,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     try {
       if (isLoginView) {
         console.log('🔐 Tentando login com email:', email);
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        console.log('📥 Resposta do login:', { data, error });
-
-        if (error) {
-          console.error('❌ Erro de login:', error);
-          throw error;
-        }
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log('📥 Resposta do login:', { user: userCredential.user });
 
         console.log('✅ Login bem-sucedido!');
         onClose();
       } else {
         console.log('📝 Tentando registrar com email:', email);
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}`
-          }
-        });
-        console.log('📥 Resposta do signup:', { data, error });
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const firebaseUser = userCredential.user;
+        console.log('📥 Resposta do signup:', { user: firebaseUser });
 
-        if (error) {
-          console.error('❌ Erro de registro:', error);
-          throw error;
+        // Create user profile in Firestore
+        if (firebaseUser) {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          await setDoc(userDocRef, {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            // Add other default settings if needed
+          }, { merge: true }); // Use merge: true to avoid overwriting existing data if any
         }
 
         console.log('✅ Registro bem-sucedido!');
-        setMessage('Verifique seu e-mail para o link de confirmação!');
+        setMessage('Registro bem-sucedido! Faça login agora.');
         setEmail('');
         setPassword('');
+        setIsLoginView(true); // Switch to login view after successful registration
       }
     } catch (err: any) {
       console.error('💥 Erro na autenticação:', err);
-      const errorMsg = err.error_description || err.message || 'Erro desconhecido';
+      let errorMsg = 'Erro desconhecido';
+      if (err.code) {
+        switch (err.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential': // Generic error for wrong email/password on newer Firebase versions
+            errorMsg = 'Email ou senha inválidos.';
+            break;
+          case 'auth/email-already-in-use':
+            errorMsg = 'Este email já está em uso.';
+            break;
+          case 'auth/weak-password':
+            errorMsg = 'A senha deve ter pelo menos 6 caracteres.';
+            break;
+          case 'auth/invalid-email':
+            errorMsg = 'Formato de email inválido.';
+            break;
+          case 'auth/operation-not-allowed':
+            errorMsg = 'Método de autenticação não habilitado. Por favor, contate o administrador.';
+            break;
+          default:
+            errorMsg = err.message;
+        }
+      } else {
+        errorMsg = err.message;
+      }
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -67,14 +92,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    });
-    if (error) {
-      setError(error.message);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+
+      // Create user profile in Firestore if not already present
+      if (firebaseUser) {
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        await setDoc(userDocRef, {
+          id: firebaseUser.uid,
+          email: firebaseUser.email,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          // Add other default settings if needed
+        }, { merge: true });
+      }
+
+      onClose(); // Close modal on successful login
+    } catch (err: any) {
+      console.error('💥 Erro no login com Google:', err);
+      let errorMsg = 'Erro desconhecido';
+      if (err.code) {
+        switch (err.code) {
+          case 'auth/popup-closed-by-user':
+            errorMsg = 'O pop-up de login foi fechado.';
+            break;
+          case 'auth/cancelled-popup-request':
+            errorMsg = 'Requisição de pop-up cancelada.';
+            break;
+          case 'auth/operation-not-allowed':
+            errorMsg = 'Método de autenticação não habilitado. Por favor, contate o administrador.';
+            break;
+          default:
+            errorMsg = err.message;
+        }
+      } else {
+        errorMsg = err.message;
+      }
+      setError(errorMsg);
+    } finally {
       setLoading(false);
     }
-    // On success, Supabase handles the redirect.
   };
 
   React.useEffect(() => {
