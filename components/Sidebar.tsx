@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppLogo, FileIcon, CubeIcon, SettingsIcon, DownloadIcon, CloseIcon, GithubIcon, LogInIcon, LogOutIcon, SaveIcon, ProjectsIcon, ImageIcon, ShieldIcon, TrashIcon, EditIcon, MapIcon, DatabaseIcon } from './Icons';
 import { IntegrationProvider, ProjectFile } from '../types';
-import type { Session } from '@supabase/supabase-js';
+import type { User } from 'firebase/auth';
 import { getFileIcon } from './FileIconHelper';
 import { FileTree } from './FileTree';
 
@@ -32,9 +32,11 @@ interface SidebarProps {
     onOpenGoogleCloudModal: () => void;
     activeFile: string | null;
     onClose?: () => void;
-    session: Session | null;
+    user: User | null;
     onLogin: () => void;
     onLogout: () => void;
+    isSaving?: boolean;
+    hasUnsavedChanges?: boolean;
 }
 
 const Tooltip: React.FC<{ text: string; children: React.ReactNode }> = ({ text, children }) => {
@@ -179,14 +181,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onOpenGoogleCloudModal,
     activeFile,
     onClose,
-    session,
+    user,
     onLogin,
-    onLogout
+    onLogout,
+    isSaving = false,
+    hasUnsavedChanges = false
 }) => {
     const [activeTab, setActiveTab] = React.useState('files');
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: ProjectFile } | null>(null);
     const [renamingFile, setRenamingFile] = useState<string | null>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
+    const [fileSearch, setFileSearch] = useState('');
 
     const handleContextMenu = (e: React.MouseEvent, file: ProjectFile) => {
         e.preventDefault();
@@ -244,9 +249,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 <CubeIcon />
                             </button>
                         </Tooltip>
-                        <Tooltip text="Salvar Projeto">
-                            <button type="button" aria-label="Salvar Projeto" onClick={onSaveProject} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
-                                <SaveIcon />
+                        <Tooltip text="Salvar Projeto (Ctrl+S)">
+                            <button
+                                type="button"
+                                aria-label="Salvar Projeto"
+                                onClick={onSaveProject}
+                                disabled={isSaving}
+                                className={`p-2 rounded-lg transition-all duration-200 ${isSaving
+                                        ? 'text-var-accent cursor-wait'
+                                        : 'text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default hover:scale-105'
+                                    }`}
+                            >
+                                {isSaving ? (
+                                    <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                ) : (
+                                    <SaveIcon />
+                                )}
                             </button>
                         </Tooltip>
                         <Tooltip text="Meus Projetos">
@@ -262,9 +283,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <DownloadIcon />
                         </button>
                     </Tooltip>
-                    {session ? (
-                        <Tooltip text={`Sair (${session.user.email})`}>
-                            <button type="button" aria-label={`Sair (${session.user.email})`} onClick={onLogout} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
+                    {user ? (
+                        <Tooltip text={`Sair (${user.email || 'Usuário'})`}>
+                            <button type="button" aria-label={`Sair (${user.email || 'Usuário'})`} onClick={onLogout} className="p-2 rounded-lg text-var-fg-muted hover:bg-var-bg-interactive hover:text-var-fg-default transition-colors">
                                 <LogOutIcon />
                             </button>
                         </Tooltip>
@@ -297,14 +318,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 {activeTab === 'files' && (
-                    <div className="mt-2 p-2 overflow-y-auto">
-                        <FileTree
-                            files={files}
-                            activeFile={activeFile}
-                            onFileSelect={onFileSelect}
-                            onRenameFile={onRenameFile}
-                            onDeleteFile={onDeleteFile}
-                        />
+                    <div className="flex flex-col h-full overflow-hidden">
+                        {/* Search Input */}
+                        <div className="px-2 pb-2 flex-shrink-0">
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Buscar arquivos..."
+                                    value={fileSearch}
+                                    onChange={(e) => setFileSearch(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-var-bg-interactive border border-var-border-default rounded-md text-var-fg-default placeholder-var-fg-subtle focus:outline-none focus:ring-1 focus:ring-var-accent/50 transition-all"
+                                />
+                                <svg className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-var-fg-subtle" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                {fileSearch && (
+                                    <button
+                                        onClick={() => setFileSearch('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-var-fg-subtle hover:text-var-fg-default"
+                                    >
+                                        <CloseIcon className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex justify-between items-center mt-1.5 text-xs text-var-fg-subtle">
+                                <span>{files.length} arquivo{files.length !== 1 ? 's' : ''}</span>
+                                {fileSearch && (
+                                    <span>{files.filter(f => f.name.toLowerCase().includes(fileSearch.toLowerCase())).length} resultado{files.filter(f => f.name.toLowerCase().includes(fileSearch.toLowerCase())).length !== 1 ? 's' : ''}</span>
+                                )}
+                            </div>
+                        </div>
+                        {/* File Tree */}
+                        <div className="flex-1 overflow-y-auto px-2 pb-2">
+                            <FileTree
+                                files={files.filter(f => !fileSearch || f.name.toLowerCase().includes(fileSearch.toLowerCase()))}
+                                activeFile={activeFile}
+                                onFileSelect={onFileSelect}
+                                onRenameFile={onRenameFile}
+                                onDeleteFile={onDeleteFile}
+                            />
+                        </div>
                     </div>
                 )}
                 {activeTab === 'environment' && (

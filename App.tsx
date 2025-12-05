@@ -18,6 +18,7 @@ import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
 import { VersionModal } from './components/VersionModal';
+import { ToastContainer, useToast } from './components/Toast';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType, GenerationMode } from './types';
 import { downloadProjectAsZip, getProjectSize, formatFileSize } from './services/projectService';
 import { INITIAL_CHAT_MESSAGE, DEFAULT_GEMINI_API_KEY, AI_MODELS } from './constants';
@@ -205,7 +206,12 @@ const App: React.FC = () => {
   const { files, activeFile, chatMessages, projectName, envVars, currentProjectId } = project;
   const [projectSize, setProjectSize] = useState<number>(0);
 
-  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>(() => {
+    // Carregar projetos do localStorage na inicialização
+    const localProjects = LocalStorageService.getProjects();
+    console.log('🚀 Projetos carregados na inicialização:', localProjects.length);
+    return localProjects;
+  });
   const [view, setView] = useState<'welcome' | 'editor' | 'pricing' | 'projects'>();
 
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -223,6 +229,11 @@ const App: React.FC = () => {
   const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
   const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
   const [isVersionModalOpen, setVersionModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Toast notifications
+  const toast = useToast();
 
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isProUser, setIsProUser] = useState<boolean>(() => LocalStorageService.getIsProUser());
@@ -384,6 +395,18 @@ const App: React.FC = () => {
       startNew();
     }
   }, [project, canManipulateHistory, setProject]);
+
+  // Função para abrir projetos - recarrega do localStorage antes
+  const handleOpenProjects = useCallback(() => {
+    console.log('📂 Abrindo página de projetos...');
+
+    // Recarregar projetos do localStorage sempre
+    const localProjects = LocalStorageService.getProjects();
+    console.log('📋 Projetos carregados do localStorage:', localProjects.length);
+    setSavedProjects(localProjects);
+
+    setView('projects');
+  }, []);
 
   const handleLogout = useCallback(async () => {
     console.log('🚪 Iniciando processo de logout...');
@@ -807,9 +830,16 @@ const App: React.FC = () => {
     console.log('💾 handleSaveProject chamado');
 
     if (files.length === 0) {
-      alert("Não é possível salvar um projeto vazio.");
+      toast.warning("Não é possível salvar um projeto vazio.");
       return;
     }
+
+    if (isSaving) {
+      toast.info("Salvamento em andamento...");
+      return;
+    }
+
+    setIsSaving(true);
 
     const projectData: Omit<SavedProject, 'id' | 'createdAt' | 'updatedAt' | 'userId'> = {
       name: projectName,
@@ -827,6 +857,7 @@ const App: React.FC = () => {
       let projectId = currentProjectId;
       if (!projectId) {
         projectId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        console.log('🆔 Novo ID gerado:', projectId);
       }
 
       const localProject: SavedProject = {
@@ -837,13 +868,23 @@ const App: React.FC = () => {
         updatedAt: new Date(),
       };
 
+      console.log('💾 Salvando projeto no localStorage:', {
+        id: localProject.id,
+        name: localProject.name,
+        filesCount: localProject.files.length,
+      });
+
       LocalStorageService.addProject(localProject);
       setProject(p => ({ ...p, currentProjectId: projectId }));
 
       const updatedProjects = LocalStorageService.getProjects();
+      console.log('📋 Projetos após salvar:', updatedProjects.length);
       setSavedProjects(updatedProjects);
+      setHasUnsavedChanges(false);
+      setIsSaving(false);
 
-      alert(`Projeto "${projectName}" salvo localmente. Faça login para sincronizar na nuvem.`);
+      toast.success(`Projeto "${projectName}" salvo localmente!`);
+      console.log('✅ Projeto salvo com sucesso no localStorage');
       return;
     }
 
@@ -874,16 +915,17 @@ const App: React.FC = () => {
           ...projectData,
           id: currentProjectId,
           userId: user.uid,
-          createdAt: savedProjects.find(p => p.id === currentProjectId)?.createdAt || new Date(), // Keep original createdAt or set new
-          updatedAt: new Date(), // Update updatedAt to current local time
+          createdAt: savedProjects.find(p => p.id === currentProjectId)?.createdAt || new Date(),
+          updatedAt: new Date(),
         };
 
         setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? updatedLocalProject : p));
 
         // Sincronizar com localStorage
         LocalStorageService.updateProject(currentProjectId, updatedLocalProject);
+        setHasUnsavedChanges(false);
 
-        alert(`Projeto "${projectName}" atualizado com sucesso!`);
+        toast.success(`Projeto "${projectName}" atualizado com sucesso!`);
 
       } else {
         // Inserir novo projeto
@@ -891,18 +933,17 @@ const App: React.FC = () => {
         const projectsColRef = collection(db, 'projects');
         const newProjectRef = await addDoc(projectsColRef, {
           ...firestoreProjectData,
-          createdAt: serverTimestamp(), // Set createdAt on new project
+          createdAt: serverTimestamp(),
         });
 
         console.log('✅ Inserção bem-sucedida:', newProjectRef.id);
 
-        // Criar um objeto SavedProject com as datas corretas (Timestamp para Date)
         const newSavedProject: SavedProject = {
           ...projectData,
           id: newProjectRef.id,
           userId: user.uid,
-          createdAt: new Date(), // Firestore serverTimestamp will resolve to a Date on read
-          updatedAt: new Date(), // Firestore serverTimestamp will resolve to a Date on read
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
 
         setProject(p => ({ ...p, currentProjectId: newProjectRef.id }));
@@ -910,14 +951,56 @@ const App: React.FC = () => {
 
         // Sincronizar com localStorage
         LocalStorageService.addProject(newSavedProject);
+        setHasUnsavedChanges(false);
 
-        alert(`Projeto "${projectName}" salvo com sucesso!`);
+        toast.success(`Projeto "${projectName}" salvo com sucesso!`);
       }
     } catch (err) {
-      console.error('💥 Erro inesperado:', err);
-      alert(`Erro inesperado: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+      console.error('💥 Erro ao salvar no Firebase:', err);
+
+      // Fallback: salvar localmente quando Firebase falha
+      console.log('⚠️ Salvando localmente como fallback...');
+
+      let projectId = currentProjectId || `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+      const localProject: SavedProject = {
+        ...projectData,
+        id: projectId,
+        userId: user?.uid || 'local-user',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      if (currentProjectId) {
+        LocalStorageService.updateProject(currentProjectId, localProject);
+      } else {
+        LocalStorageService.addProject(localProject);
+        setProject(p => ({ ...p, currentProjectId: projectId }));
+      }
+
+      const updatedProjects = LocalStorageService.getProjects();
+      setSavedProjects(updatedProjects);
+
+      toast.warning(`Projeto salvo localmente (Firebase indisponível)`);
+    } finally {
+      setIsSaving(false);
     }
-  }, [user, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject, project.appType]);
+  }, [user, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject, project.appType, isSaving, toast]);
+
+  // Keyboard shortcut for saving (Ctrl+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (view === 'editor' && files.length > 0) {
+          handleSaveProject();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSaveProject, view, files.length]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     // Verificar se usuário está autenticado
@@ -1076,7 +1159,7 @@ const App: React.FC = () => {
             handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType, generationMode);
           }}
           onShowPricing={() => setView('pricing')}
-          onShowProjects={() => setView('projects')}
+          onShowProjects={handleOpenProjects}
           onOpenGithubImport={() => setGithubModalOpen(true)}
           onFolderImport={handleProjectImport}
           onNewProject={handleNewProject}
@@ -1112,10 +1195,11 @@ const App: React.FC = () => {
                 <Sidebar
                   files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={name => setProject(p => ({ ...p, activeFile: name }))} onDownload={handleDownload}
                   onOpenSettings={handleOpenSettings} onOpenGithubImport={() => setGithubModalOpen(true)}
-                  onSaveProject={handleSaveProject} onOpenProjects={() => setView('projects')} onNewProject={handleNewProject}
+                  onSaveProject={handleSaveProject} onOpenProjects={handleOpenProjects} onNewProject={handleNewProject}
                   onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                   onOpenStripeModal={() => setStripeModalOpen(true)} onOpenNeonModal={() => setNeonModalOpen(true)} onOpenOSMModal={() => setOSMModalOpen(true)} onOpenGoogleCloudModal={() => setGoogleCloudModalOpen(true)} onOpenFirebaseFirestoreModal={() => setFirebaseFirestoreModalOpen(true)}
                   user={user} onLogin={() => setAuthModalOpen(true)} onLogout={handleLogout}
+                  isSaving={isSaving} hasUnsavedChanges={hasUnsavedChanges}
                 />
               </div>
 
@@ -1126,11 +1210,12 @@ const App: React.FC = () => {
                       files={files} envVars={envVars} onEnvVarChange={newVars => setProject(p => ({ ...p, envVars: newVars }))} activeFile={activeFile} onFileSelect={(file) => { setProject(p => ({ ...p, activeFile: file })); setSidebarOpen(false); }}
                       onDownload={() => { handleDownload(); setSidebarOpen(false); }} onOpenSettings={() => { handleOpenSettings(); setSidebarOpen(false); }}
                       onOpenGithubImport={() => { setGithubModalOpen(true); setSidebarOpen(false); }}
-                      onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { setView('projects'); setSidebarOpen(false); }}
+                      onSaveProject={() => { handleSaveProject(); setSidebarOpen(false); }} onOpenProjects={() => { handleOpenProjects(); setSidebarOpen(false); }}
                       onNewProject={handleNewProject} onClose={() => setSidebarOpen(false)}
                       onRenameFile={handleRenameFile} onDeleteFile={handleDeleteFile}
                       onOpenStripeModal={() => { setStripeModalOpen(true); setSidebarOpen(false); }} onOpenNeonModal={() => { setNeonModalOpen(true); setSidebarOpen(false); }} onOpenOSMModal={() => { setOSMModalOpen(true); setSidebarOpen(false); }} onOpenGoogleCloudModal={() => { setGoogleCloudModalOpen(true); setSidebarOpen(false); }} onOpenFirebaseFirestoreModal={() => { setFirebaseFirestoreModalOpen(true); setSidebarOpen(false); }}
                       user={user} onLogin={() => { setAuthModalOpen(true); setSidebarOpen(false); }} onLogout={() => { handleLogout(); setSidebarOpen(false); }}
+                      isSaving={isSaving} hasUnsavedChanges={hasUnsavedChanges}
                     />
                   </div>
                 </div>
@@ -1170,7 +1255,7 @@ const App: React.FC = () => {
             handleSendMessage(prompt, model.provider, model.id, AIMode.Chat, attachments, appType, generationMode);
           }}
           onShowPricing={() => setView('pricing')}
-          onShowProjects={() => setView('projects')}
+          onShowProjects={handleOpenProjects}
           onOpenGithubImport={() => setGithubModalOpen(true)}
           onFolderImport={handleProjectImport}
           onNewProject={handleNewProject}
@@ -1254,6 +1339,7 @@ const App: React.FC = () => {
         currentEnvVars={envVars}
         onRestoreVersion={handleRestoreVersion}
       />
+      <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
     </div>
   );
 };
