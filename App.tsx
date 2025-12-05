@@ -34,7 +34,7 @@ const MAX_RETRIES = 3; // Define max retries for AI generation
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon, ChatIcon, AppLogo, VersionIcon } from './components/Icons';
 import { db, auth } from './services/firebase';
-import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { User, onAuthStateChanged, signOut, type User as FirebaseAuthUser } from "firebase/auth";
 import geminiImage from './components/models image/gemini.png'; // Import the image
 import openrouterImage from './components/models image/openrouter.png'; // Import the OpenRouter image
@@ -851,6 +851,7 @@ const App: React.FC = () => {
         console.log('🆔 Novo ID gerado:', projectId);
       }
 
+      const existingProject = savedProjects.find(p => p.id === projectId);
       const projectToSave: SavedProject = {
         id: projectId,
         name: projectName,
@@ -859,7 +860,7 @@ const App: React.FC = () => {
         envVars: envVars,
         appType: project.appType,
         userId: user?.uid || 'local-user',
-        createdAt: savedProjects.find(p => p.id === projectId)?.createdAt || new Date(),
+        createdAt: existingProject?.createdAt || new Date(),
         updatedAt: new Date(),
       };
 
@@ -869,7 +870,27 @@ const App: React.FC = () => {
         filesCount: projectToSave.files.length,
       });
 
-      // SEMPRE salvar no localStorage primeiro (local é garantido funcionar)
+      // Para usuários autenticados, salvar no Firestore
+      if (user) {
+        try {
+          const projectDocRef = doc(db, 'projects', projectId);
+          await setDoc(projectDocRef, {
+            userId: user.uid,
+            name: projectName,
+            files,
+            chatHistory: chatMessages,
+            envVars: envVars,
+            appType: project.appType,
+            createdAt: existingProject?.createdAt ? existingProject.createdAt : serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          console.log('✅ Projeto salvo no Firestore');
+        } catch (firestoreError) {
+          console.error('⚠️ Erro ao salvar no Firestore (salvando localmente):', firestoreError);
+        }
+      }
+
+      // SEMPRE salvar no localStorage (cache/fallback)
       LocalStorageService.addProject(projectToSave);
 
       // Atualizar estado
