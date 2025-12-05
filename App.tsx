@@ -18,6 +18,7 @@ import { OpenStreetMapModal } from './components/OpenStreetMapModal';
 import { GoogleCloudModal } from './components/GoogleCloudModal';
 import { FirebaseFirestoreModal } from './components/FirebaseFirestoreModal';
 import { VersionModal } from './components/VersionModal';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { ToastContainer, useToast } from './components/Toast';
 import { ProjectFile, ChatMessage, AIProvider, UserSettings, Theme, SavedProject, AIMode, AppType, GenerationMode } from './types';
 import { downloadProjectAsZip, getProjectSize, formatFileSize } from './services/projectService';
@@ -229,6 +230,7 @@ const App: React.FC = () => {
   const [isGoogleCloudModalOpen, setGoogleCloudModalOpen] = useState(false);
   const [isFirebaseFirestoreModalOpen, setFirebaseFirestoreModalOpen] = useState(false);
   const [isVersionModalOpen, setVersionModalOpen] = useState(false);
+  const [isKeyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -841,160 +843,71 @@ const App: React.FC = () => {
 
     setIsSaving(true);
 
-    const projectData: Omit<SavedProject, 'id' | 'createdAt' | 'updatedAt' | 'userId'> = {
-      name: projectName,
-      files,
-      chatHistory: chatMessages,
-      envVars: envVars,
-      appType: project.appType,
-    };
-
-    // Verificar se usuário está autenticado
-    if (!user) {
-      console.log('⚠️ Usuário não autenticado - salvando apenas localmente');
-
-      // Gerar ID local único se não existir
+    try {
+      // Gerar ou usar ID existente
       let projectId = currentProjectId;
       if (!projectId) {
         projectId = `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         console.log('🆔 Novo ID gerado:', projectId);
       }
 
-      const localProject: SavedProject = {
-        ...projectData,
+      const projectToSave: SavedProject = {
         id: projectId,
-        userId: 'local-user',
-        createdAt: new Date(),
+        name: projectName,
+        files,
+        chatHistory: chatMessages,
+        envVars: envVars,
+        appType: project.appType,
+        userId: user?.uid || 'local-user',
+        createdAt: savedProjects.find(p => p.id === projectId)?.createdAt || new Date(),
         updatedAt: new Date(),
       };
 
-      console.log('💾 Salvando projeto no localStorage:', {
-        id: localProject.id,
-        name: localProject.name,
-        filesCount: localProject.files.length,
+      console.log('💾 Salvando projeto:', {
+        id: projectToSave.id,
+        name: projectToSave.name,
+        filesCount: projectToSave.files.length,
       });
 
-      LocalStorageService.addProject(localProject);
+      // SEMPRE salvar no localStorage primeiro (local é garantido funcionar)
+      LocalStorageService.addProject(projectToSave);
+
+      // Atualizar estado
       setProject(p => ({ ...p, currentProjectId: projectId }));
 
       const updatedProjects = LocalStorageService.getProjects();
-      console.log('📋 Projetos após salvar:', updatedProjects.length);
+      console.log('📋 Projetos salvos:', updatedProjects.length);
       setSavedProjects(updatedProjects);
       setHasUnsavedChanges(false);
-      setIsSaving(false);
 
-      toast.success(`Projeto "${projectName}" salvo localmente!`);
-      console.log('✅ Projeto salvo com sucesso no localStorage');
-      return;
-    }
+      toast.success(`Projeto "${projectName}" salvo!`);
+      console.log('✅ Projeto salvo com sucesso');
 
-    // Para usuários autenticados, salvar no Firestore
-    console.log('📝 Salvando projeto no Firestore:', {
-      name: projectName,
-      filesCount: files.length,
-      userId: user.uid,
-    });
-
-    const firestoreProjectData = {
-      ...projectData,
-      userId: user.uid,
-      updatedAt: serverTimestamp(), // Use Firestore server timestamp
-    };
-
-    try {
-      if (currentProjectId) {
-        // Atualizar projeto existente
-        console.log('🔄 Atualizando projeto existente:', currentProjectId);
-        const projectDocRef = doc(db, 'projects', currentProjectId);
-        await updateDoc(projectDocRef, firestoreProjectData);
-
-        console.log('✅ Atualização bem-sucedida:', currentProjectId);
-
-        // Atualizar estado local com a data atual para 'updatedAt'
-        const updatedLocalProject = {
-          ...projectData,
-          id: currentProjectId,
-          userId: user.uid,
-          createdAt: savedProjects.find(p => p.id === currentProjectId)?.createdAt || new Date(),
-          updatedAt: new Date(),
-        };
-
-        setSavedProjects(savedProjects.map(p => p.id === currentProjectId ? updatedLocalProject : p));
-
-        // Sincronizar com localStorage
-        LocalStorageService.updateProject(currentProjectId, updatedLocalProject);
-        setHasUnsavedChanges(false);
-
-        toast.success(`Projeto "${projectName}" atualizado com sucesso!`);
-
-      } else {
-        // Inserir novo projeto
-        console.log('➕ Inserindo novo projeto');
-        const projectsColRef = collection(db, 'projects');
-        const newProjectRef = await addDoc(projectsColRef, {
-          ...firestoreProjectData,
-          createdAt: serverTimestamp(),
-        });
-
-        console.log('✅ Inserção bem-sucedida:', newProjectRef.id);
-
-        const newSavedProject: SavedProject = {
-          ...projectData,
-          id: newProjectRef.id,
-          userId: user.uid,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        setProject(p => ({ ...p, currentProjectId: newProjectRef.id }));
-        setSavedProjects([...savedProjects, newSavedProject]);
-
-        // Sincronizar com localStorage
-        LocalStorageService.addProject(newSavedProject);
-        setHasUnsavedChanges(false);
-
-        toast.success(`Projeto "${projectName}" salvo com sucesso!`);
-      }
     } catch (err) {
-      console.error('💥 Erro ao salvar no Firebase:', err);
-
-      // Fallback: salvar localmente quando Firebase falha
-      console.log('⚠️ Salvando localmente como fallback...');
-
-      let projectId = currentProjectId || `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-      const localProject: SavedProject = {
-        ...projectData,
-        id: projectId,
-        userId: user?.uid || 'local-user',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      if (currentProjectId) {
-        LocalStorageService.updateProject(currentProjectId, localProject);
-      } else {
-        LocalStorageService.addProject(localProject);
-        setProject(p => ({ ...p, currentProjectId: projectId }));
-      }
-
-      const updatedProjects = LocalStorageService.getProjects();
-      setSavedProjects(updatedProjects);
-
-      toast.warning(`Projeto salvo localmente (Firebase indisponível)`);
+      console.error('💥 Erro ao salvar:', err);
+      toast.error(`Erro ao salvar: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
     } finally {
+      // SEMPRE resetar o estado de salvando
       setIsSaving(false);
+      console.log('🔓 isSaving resetado para false');
     }
   }, [user, files, projectName, chatMessages, envVars, currentProjectId, savedProjects, setProject, project.appType, isSaving, toast]);
 
-  // Keyboard shortcut for saving (Ctrl+S)
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S to save
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (view === 'editor' && files.length > 0) {
           handleSaveProject();
         }
+      }
+
+      // ? to open keyboard shortcuts (only when not typing in input)
+      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        setKeyboardShortcutsOpen(true);
       }
     };
 
@@ -1338,6 +1251,10 @@ const App: React.FC = () => {
         currentChatHistory={chatMessages}
         currentEnvVars={envVars}
         onRestoreVersion={handleRestoreVersion}
+      />
+      <KeyboardShortcutsModal
+        isOpen={isKeyboardShortcutsOpen}
+        onClose={() => setKeyboardShortcutsOpen(false)}
       />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
     </div>
